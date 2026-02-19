@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generate PWA Icons</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            padding: 2rem;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        canvas {
+            border: 1px solid #ccc;
+            margin: 1rem 0;
+        }
+        button {
+            background: #6366f1;
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            cursor: pointer;
+            margin: 0.5rem;
+        }
+        button:hover {
+            background: #4f46e5;
+        }
+    </style>
+</head>
+<body>
+    <h1>Generate PWA Icons</h1>
+    <p>Click the buttons below to generate and download the required icon files:</p>
+
+    <canvas id="canvas192" width="192" height="192"></canvas>
+    <br>
+    <button onclick="generateIcon(192)">Download 192x192 Icon</button>
+
+    <canvas id="canvas512" width="512" height="512"></canvas>
+    <br>
+    <button onclick="generateIcon(512)">Download 512x512 Icon</button>
+
+    <script>
+        function drawIcon(canvas) {
+            const ctx = canvas.getContext('2d');
+            const size = canvas.width;
+
+            // Background gradient
+            const gradient = ctx.createLinearGradient(0, 0, size, size);
+            gradient.addColorStop(0, '#6366f1');
+            gradient.addColorStop(1, '#818cf8');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, size, size);
+
+            // Draw "W" letter
+            ctx.fillStyle = 'white';
+            ctx.font = `bold ${size * 0.6}px Inter, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('W', size / 2, size / 2);
+
+            // Draw bubble outline
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+            ctx.lineWidth = size * 0.08;
+            ctx.beginPath();
+            ctx.arc(size / 2, size / 2, size * 0.35, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        function generateIcon(size) {
+            const canvas = document.getElementById(`canvas${size}`);
+            drawIcon(canvas);
+
+            canvas.toBlob(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `icon-${size}.png`;
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+        }
+
+        // Draw previews on load
+        window.onload = () => {
+            drawIcon(document.getElementById('canvas192'));
+            drawIcon(document.getElementById('canvas512'));
+        };
+    </script>
+</body>
+</html>

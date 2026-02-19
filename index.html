@@ -12,7 +12,6 @@
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icon-192.png">
     <title>Word Bubbling - Dr. Roman-Lantzy Method</title>
-    <!-- Tailwind CSS (CDN for standalone) -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -20,82 +19,62 @@
             theme: {
                 extend: {
                     colors: {
-                        slate: {
-                            950: '#020617',
-                        }
+                        slate: { 950: '#020617' }
                     },
                     fontFamily: {
                         inter: ['Inter', 'sans-serif'],
+                        lexend: ['Lexend', 'sans-serif'],
                     }
                 }
             }
         }
     </script>
-    <!-- Google Fonts: Inter & Lexend -->
     <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800;900&family=Lexend:wght@300;400;500;600;700;800;900&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Lexend:wght@300;400;500;600;700;800;900&display=swap"
         rel="stylesheet">
+
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
+        * {
+            box-sizing: border-box;
         }
 
+        body {
+            font-family: 'Lexend', sans-serif;
+            overscroll-behavior: none;
+        }
+
+        /* ── Contour filter system (unchanged) ── */
         .text-cell-contour {
             position: relative;
             z-index: 10;
-            /* Enable GPU acceleration for smoother filter rendering */
             transform: translateZ(0);
             -webkit-font-smoothing: antialiased;
-        }
-
-        .text-cell-contour::after {
-            /* The Gap Layer (Inner Stroke via Dilate Filter) */
-            content: attr(data-text);
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            z-index: -1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            pointer-events: none;
-            filter: var(--contour-filter-gap);
-            /* Smooth rendering */
-            -webkit-font-smoothing: antialiased;
+            filter: var(--contour-filter-combined);
             text-rendering: geometricPrecision;
-            /* Ensure filter receives valid source alpha even if main text is transparent */
-            color: black;
+            color: transparent;
+            /* SourceGraphic is provided by the filter if needed, or we just rely on the element's color */
         }
 
+        .text-cell-contour::after,
         .text-cell-contour::before {
-            /* The Outline Layer (Outer Stroke via Dilate Filter) */
-            content: attr(data-text);
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            z-index: -2;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            pointer-events: none;
-            filter: var(--contour-filter-outline);
-            /* Smooth rendering */
-            -webkit-font-smoothing: antialiased;
-            text-rendering: geometricPrecision;
-            /* Ensure filter receives valid source alpha even if main text is transparent */
-            color: black;
+            display: none;
         }
 
-        /* Toggle Switch */
+        /* ── Word display ── */
+        #word-display {
+            white-space: pre-wrap;
+            word-break: normal;
+            overflow-wrap: normal;
+            max-width: 100%;
+        }
+
+        /* ── Toggle switch ── */
         .toggle-switch {
             position: relative;
             display: inline-block;
-            width: 48px;
+            width: 44px;
             height: 24px;
+            flex-shrink: 0;
         }
 
         .toggle-switch input {
@@ -107,12 +86,9 @@
         .toggle-slider {
             position: absolute;
             cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
+            inset: 0;
             background-color: #cbd5e1;
-            transition: 0.3s;
+            transition: 0.25s;
             border-radius: 24px;
         }
 
@@ -123,8 +99,8 @@
             width: 18px;
             left: 3px;
             bottom: 3px;
-            background-color: white;
-            transition: 0.3s;
+            background: white;
+            transition: 0.25s;
             border-radius: 50%;
         }
 
@@ -137,32 +113,45 @@
         }
 
         input:checked+.toggle-slider:before {
-            transform: translateX(24px);
+            transform: translateX(20px);
         }
 
-        .toggle-label {
-            font-size: 0.75rem;
-            font-weight: 500;
-            transition: all 0.2s;
+        /* ── Custom range slider ── */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            height: 4px;
+            border-radius: 2px;
+            outline: none;
+            cursor: pointer;
         }
 
-        .toggle-label.active {
-            color: #6366f1;
-            font-weight: 700;
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #6366f1;
+            cursor: pointer;
+            box-shadow: 0 1px 4px rgba(99, 102, 241, 0.4);
+            transition: transform 0.15s;
         }
 
-        .dark .toggle-label.active {
-            color: #818cf8;
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.15);
         }
 
-        /* Mobile Responsive */
-        @media (max-width: 768px) {
-            #word-display {
-                font-size: 3rem !important;
-            }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border: none;
+            border-radius: 50%;
+            background: #6366f1;
+            cursor: pointer;
         }
 
-        /* Update Banner */
+        /* ── Update Banner ── */
         .update-banner {
             position: fixed;
             top: 0;
@@ -193,42 +182,205 @@
             transition: all 0.2s;
         }
 
-        .update-banner button:hover {
-            transform: scale(1.05);
+        /* ── DRAWER ── */
+        /* Mobile: bottom sheet */
+        #controls-drawer {
+            --peek-h: 248px;
+            --full-h: 68dvh;
+            height: var(--peek-h);
+            transition: height 0.38s cubic-bezier(0.4, 0, 0.2, 1);
+            will-change: height;
         }
 
-        /* Touch-friendly adjustments */
-        @media (max-width: 768px) {
-            .color-btn {
-                min-width: 44px;
-                min-height: 44px;
-            }
-
-            /* Improve touch interactions */
-            button,
-            input[type="range"],
-            .toggle-switch {
-                touch-action: manipulation;
-            }
-
-            /* Prevent pull-to-refresh on controls */
-            .flex-1.overflow-y-auto {
-                overscroll-behavior: contain;
-            }
+        #controls-drawer.drawer-expanded {
+            height: var(--full-h);
         }
 
-        /* Prevent text selection on UI elements */
-        button,
-        .toggle-switch,
+        /* ── Dot grid background ── */
+        .dot-grid {
+            background-image: radial-gradient(rgba(99, 102, 241, 0.15) 1px, transparent 1px);
+            background-size: 28px 28px;
+        }
+
+        /* ── Section label ── */
+        .section-label {
+            font-size: 0.65rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: #94a3b8;
+        }
+
+        .dark .section-label {
+            color: #64748b;
+        }
+
+        /* ── Color swatch button ── */
         .color-btn {
+            touch-action: manipulation;
             -webkit-user-select: none;
             user-select: none;
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+
+        .color-btn:hover {
+            transform: scale(1.1);
+        }
+
+        .color-btn:active {
+            transform: scale(0.95);
+        }
+
+        .color-btn.selected {
+            box-shadow: 0 0 0 2px white, 0 0 0 4px #6366f1;
+        }
+
+        .dark .color-btn.selected {
+            box-shadow: 0 0 0 2px #1e293b, 0 0 0 4px #818cf8;
+        }
+
+        /* Prevent pull-to-refresh */
+        html,
+        body {
+            overscroll-behavior-y: none;
+        }
+
+        /* ── Safe areas ── */
+        .pb-safe {
+            padding-bottom: env(safe-area-inset-bottom, 0px);
+        }
+
+        /* ── Prevent text selection on controls ── */
+        button,
+        .toggle-switch,
+        .color-btn,
+        label {
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        /* ── Select element ── */
+        select {
+            -webkit-appearance: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            padding-right: 32px !important;
+        }
+
+        /* ── Scrollbar ── */
+        .custom-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .custom-scroll::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 2px;
+        }
+
+        .dark .custom-scroll::-webkit-scrollbar-thumb {
+            background: #334155;
+        }
+
+        /* Desktop: right-side overlay drawer */
+        @media (min-width: 768px) {
+            #controls-drawer {
+                position: fixed;
+                top: 0;
+                right: 0;
+                bottom: 0;
+                left: auto;
+                width: 320px;
+                height: 100% !important;
+                border-top: none !important;
+                border-left: 1px solid;
+                transform: translateX(105%);
+                transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+                will-change: transform;
+                box-shadow: -8px 0 32px rgba(0, 0, 0, 0.18);
+            }
+
+            #controls-drawer.drawer-expanded {
+                transform: translateX(0);
+            }
+
+            #drawer-handle {
+                display: none !important;
+            }
+
+            /* Pull-tab */
+            #drawer-tab {
+                display: flex;
+                position: fixed;
+                right: 0;
+                top: 50%;
+                transform: translateY(-50%);
+                z-index: 31;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                background: #6366f1;
+                color: white;
+                border: none;
+                border-radius: 10px 0 0 10px;
+                padding: 32px 12px;
+                cursor: pointer;
+                box-shadow: -4px 0 18px rgba(99, 102, 241, 0.35);
+                transition: right 0.35s cubic-bezier(0.4, 0, 0.2, 1), background 0.2s;
+                -webkit-user-select: none;
+                user-select: none;
+            }
+
+            #drawer-tab:hover {
+                background: #4f46e5;
+            }
+
+            #drawer-tab.open {
+                right: 320px;
+            }
+
+            #drawer-tab .tab-chevron {
+                transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+
+            #drawer-tab.open .tab-chevron {
+                transform: rotate(180deg);
+            }
+
+
+            /* Hide the header gear button on desktop */
+            #settings-gear-btn {
+                display: none !important;
+            }
+        }
+
+        @media (min-width: 1024px) {
+            #controls-drawer {
+                width: 384px;
+            }
+
+            #drawer-tab.open {
+                right: 384px;
+            }
+        }
+
+        /* Landscape short screen */
+        @media (max-height: 500px) and (orientation: landscape) {
+            #controls-drawer {
+                --peek-h: 180px;
+                --full-h: 80dvh;
+            }
         }
     </style>
 </head>
 
-<body
-    class="h-screen w-screen overflow-hidden bg-slate-50 dark:bg-slate-900 transition-colors duration-300 text-slate-900 dark:text-white font-inter">
+<body class="h-[100dvh] w-screen overflow-hidden bg-black text-slate-100">
 
     <!-- Update Banner -->
     <div id="update-banner" class="update-banner">
@@ -239,314 +391,333 @@
         <button onclick="updateApp()">Update Now</button>
     </div>
 
-    <!-- About Modal -->
+    <!-- ═══════════════════════════════════════════════════
+         ABOUT MODAL
+    ════════════════════════════════════════════════════ -->
     <div id="about-modal"
-        class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 transition-opacity">
+        class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
         <div
-            class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-slate-200 dark:border-slate-700 flex flex-col">
+            class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-lg w-full max-h-[88vh] overflow-y-auto border border-slate-200 dark:border-slate-700 flex flex-col">
             <div
-                class="p-6 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur z-10">
-                <h2 class="text-xl font-bold text-slate-900 dark:text-white">About Word Bubbling</h2>
+                class="p-5 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur z-10">
+                <h2 class="text-lg font-bold text-slate-900 dark:text-white">About Word Bubbling</h2>
                 <button onclick="toggleAbout()"
-                    class="text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
-                        </path>
+                    class="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M6 18L18 6M6 6l12 12" />
                     </svg>
                 </button>
             </div>
-            <div class="p-6 space-y-6 text-slate-600 dark:text-slate-300">
-                <div>
-                    <p class="mb-4">
-                        <strong>Word Bubbling</strong> is a tool designed to create high-contrast, outline-bubbled text
-                        based on the Roman-Lantzy method for CVI (Cortical Visual Impairment).
-                    </p>
-                    <p class="text-sm">
-                        It helps children with CVI focus on words by reducing visual clutter and emphasizing word shape
-                        through high-contrast contours.
-                    </p>
-                </div>
-
+            <div class="p-5 space-y-5 text-sm text-slate-600 dark:text-slate-300">
+                <p><strong class="text-slate-900 dark:text-white">Word Bubbling</strong> is a tool designed to create
+                    high-contrast, outline-bubbled text based on the Roman-Lantzy method for CVI (Cortical Visual
+                    Impairment).</p>
+                <p>It helps children with CVI focus on words by reducing visual clutter and emphasising word shape
+                    through high-contrast contours.</p>
                 <div class="border-t border-slate-200 dark:border-slate-800 pt-4">
-                    <h3 class="font-bold text-slate-900 dark:text-white mb-2">Fonts & Licenses</h3>
-
-                    <div class="space-y-4">
+                    <h3 class="font-bold text-slate-900 dark:text-white mb-3">Fonts & Licenses</h3>
+                    <div class="space-y-3">
                         <div>
-                            <h4 class="font-semibold text-slate-800 dark:text-slate-100">Inter</h4>
-                            <p class="text-xs text-slate-500 mb-1">Copyright (c) 2016-2020 The Inter Project Authors</p>
-                            <p class="text-xs">Licensed under the SIL Open Font License, Version 1.1.</p>
+                            <h4 class="font-semibold text-slate-800 dark:text-slate-100 text-xs">Inter</h4>
+                            <p class="text-xs text-slate-400">Copyright (c) 2016-2020 The Inter Project Authors. SIL
+                                Open Font License 1.1.</p>
                         </div>
-
                         <div>
-                            <h4 class="font-semibold text-slate-800 dark:text-slate-100">Lexend</h4>
-                            <p class="text-xs text-slate-500 mb-1">Copyright 2019 The Lexend Project Authors</p>
-                            <p class="text-xs">Licensed under the SIL Open Font License, Version 1.1.</p>
+                            <h4 class="font-semibold text-slate-800 dark:text-slate-100 text-xs">Lexend</h4>
+                            <p class="text-xs text-slate-400">Copyright 2019 The Lexend Project Authors. SIL Open Font
+                                License 1.1.</p>
                         </div>
-
-                        <div
-                            class="bg-slate-100 dark:bg-slate-800 p-3 rounded-lg text-[10px] leading-relaxed font-mono">
-                            <p class="font-bold mb-1">SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007</p>
-                            <p>PREAMBLE: The goals of the Open Font License (OFL) are to stimulate worldwide development
-                                of collaborative font projects, to support the font creation efforts of academic and
-                                linguistic communities, and to provide a free and open framework in which fonts may be
-                                shared and improved in partnership with others.</p>
-                            <p class="mt-1">PERMISSION & CONDITIONS: Permission is hereby granted, free of charge, to
-                                any person obtaining a copy of the Font Software, to use, study, copy, merge, embed,
-                                modify, redistribute, and sell modified and unmodified copies of the Font Software,
-                                subject to the certain conditions...</p>
-                            <a href="https://openfontlicense.org/" target="_blank"
-                                class="block mt-2 text-indigo-600 dark:text-indigo-400 underline">Read full license</a>
-                        </div>
+                        <a href="https://openfontlicense.org/" target="_blank"
+                            class="inline-block text-xs text-indigo-500 hover:underline">Read full OFL license →</a>
                     </div>
                 </div>
             </div>
-            <div class="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+            <div class="p-4 border-t border-slate-200 dark:border-slate-800">
                 <button onclick="toggleAbout()"
-                    class="w-full py-2 bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white font-semibold rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors">Close</button>
+                    class="w-full py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-semibold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-sm">
+                    Close
+                </button>
             </div>
         </div>
     </div>
 
-    <div class="flex flex-col md:flex-row h-full w-full">
+    <!-- ═══════════════════════════════════════════════════
+         MAIN LAYOUT: flex-col on mobile, flex-row on md+
+    ════════════════════════════════════════════════════ -->
+    <div class="flex flex-col h-full w-full overflow-hidden">
 
-        <!-- Preview Area (Left/Top) -->
+        <!-- ──────────────────────────────────────────
+             PREVIEW AREA
+        ─────────────────────────────────────────── -->
         <div
-            class="flex-1 flex flex-col relative bg-slate-50 dark:bg-slate-950 transition-colors duration-300 overflow-hidden order-1 md:order-1">
+            class="flex-1 min-h-0 relative bg-white dark:bg-black transition-colors duration-300 overflow-hidden dot-grid">
 
-            <!-- Header Overlay -->
-            <div
-                class="absolute top-0 left-0 right-0 p-3 md:p-6 flex justify-between items-start z-10 pointer-events-none">
-                <div
-                    class="pointer-events-auto bg-white/80 dark:bg-slate-900/80 backdrop-blur-md p-2 md:p-4 rounded-xl md:rounded-2xl shadow-sm border border-slate-200/50 dark:border-slate-700/50">
-                    <h1 class="text-base md:text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">Word
-                        Bubbling</h1>
-                    <p class="text-indigo-500 text-[10px] md:text-xs font-bold uppercase tracking-wider mt-0.5">Dr.
-                        Roman-Lantzy Method
-                    </p>
+            <!-- Header overlay -->
+            <div class="absolute top-0 right-0 z-10 p-3 md:p-5 flex justify-end items-start pointer-events-none">
+
+                <div class="pointer-events-auto flex gap-2">
+                    <!-- Theme toggle -->
+                    <button onclick="toggleTheme()"
+                        class="w-9 h-9 md:w-10 md:h-10 flex items-center justify-center bg-white/80 dark:bg-slate-900/75 backdrop-blur-md rounded-xl shadow-sm border border-white/60 dark:border-slate-700/50 hover:scale-105 transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        aria-label="Toggle theme">
+                        <svg id="icon-sun" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 hidden text-amber-400"
+                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                        </svg>
+                        <svg id="icon-moon" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-400"
+                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                        </svg>
+                    </button>
+                    <!-- Settings toggle (mobile only; desktop uses the pull-tab) -->
+                    <button id="settings-gear-btn" onclick="toggleDrawer()"
+                        class="w-9 h-9 md:w-10 md:h-10 flex items-center justify-center bg-white/80 dark:bg-slate-900/75 backdrop-blur-md rounded-xl shadow-sm border border-white/60 dark:border-slate-700/50 hover:scale-105 transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        aria-label="Toggle settings">
+                        <svg class="h-4 w-4 text-slate-600 dark:text-slate-300" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                    </button>
                 </div>
-
-                <button onclick="toggleTheme()"
-                    class="pointer-events-auto p-2 md:p-3 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md hover:bg-white dark:hover:bg-slate-800 rounded-lg md:rounded-xl shadow-sm border border-slate-200/50 dark:border-slate-700/50 transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500 group"
-                    aria-label="Toggle Theme">
-                    <!-- Sun Icon (for Dark Mode) -->
-                    <svg id="icon-sun" xmlns="http://www.w3.org/2000/svg"
-                        class="h-5 w-5 md:h-6 md:w-6 hidden text-amber-400 group-hover:scale-110 transition-transform"
-                        fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-                    </svg>
-                    <!-- Moon Icon (for Light Mode) -->
-                    <svg id="icon-moon" xmlns="http://www.w3.org/2000/svg"
-                        class="h-5 w-5 md:h-6 md:w-6 text-indigo-600 dark:text-indigo-400 group-hover:scale-110 transition-transform"
-                        fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                    </svg>
-                </button>
             </div>
 
-            <!-- Background Pattern -->
-            <div class="absolute inset-0 opacity-[0.03] dark:opacity-[0.05] pointer-events-none"
-                style="background-image: radial-gradient(#6366f1 1px, transparent 1px); background-size: 32px 32px;">
-            </div>
-
-            <!-- The Word Display -->
-            <div id="display-area" class="flex-1 flex items-center justify-center p-8 overflow-hidden relative">
+            <!-- Word display -->
+            <div id="display-area" class="absolute inset-0 flex items-center justify-center p-8 md:p-12">
                 <div id="word-display"
-                    class="text-6xl md:text-9xl font-extrabold text-center transition-all duration-300 select-none text-cell-contour text-black dark:text-white"
-                    data-text="Bubbling" style="line-height: 1.1; white-space: pre-wrap; word-break: break-word;">
+                    class="font-extrabold text-center select-none text-cell-contour text-black dark:text-white"
+                    data-text="Bubbling" style="line-height: 1.1;">
                     Bubbling
                 </div>
             </div>
         </div>
 
-        <!-- Controls Sidebar (Right/Bottom) -->
-        <div
-            class="w-full md:w-96 bg-white dark:bg-slate-800 border-t md:border-t-0 md:border-l border-slate-200 dark:border-slate-700 shadow-xl z-20 flex flex-col order-2 md:order-2 overflow-hidden max-h-[50vh] md:max-h-none">
+        <!-- ──────────────────────────────────────────
+             CONTROLS PANEL (bottom drawer on mobile, overlay drawer on desktop)
+        ─────────────────────────────────────────── -->
 
-            <div class="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 md:space-y-8">
+        <!-- Desktop pull-tab (hidden on mobile) -->
+        <button id="drawer-tab" onclick="toggleDrawer()" aria-label="Toggle settings panel">
+            <svg class="tab-chevron w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+        </button>
+        <div id="controls-drawer" class="
+                w-full
+                flex-shrink-0
+                bg-white dark:bg-slate-900
+                border-t border-slate-200 dark:border-slate-800
+                shadow-2xl
+                z-30
+                flex flex-col
+                overflow-hidden
+                pb-safe
+            ">
 
-                <!-- Text Input -->
-                <div class="space-y-3">
-                    <label for="text-input"
-                        class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Word
-                        input</label>
-                    <textarea id="text-input" rows="3"
-                        class="w-full px-4 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-slate-900 dark:text-white font-bold text-xl transition-all shadow-sm resize-none"
-                        placeholder="Type a word...">Bubbling</textarea>
+            <!-- ── Drawer handle (mobile only) ── -->
+            <button id="drawer-handle" onclick="toggleDrawer()"
+                class="md:hidden w-full flex flex-col items-center justify-center py-2.5 flex-shrink-0 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors active:bg-slate-100 dark:active:bg-slate-800"
+                aria-label="Toggle controls">
+                <div class="w-8 h-1 rounded-full bg-slate-300 dark:bg-slate-600"></div>
+                <div id="drawer-chevron" class="mt-1 text-slate-400 transition-transform duration-300">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" />
+                    </svg>
                 </div>
+            </button>
 
-                <!-- Color Picker -->
-                <div class="space-y-3">
-                    <span
-                        class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Bubble
-                        Color</span>
-                    <div class="grid grid-cols-6 gap-2">
-                        <button onclick="setBubbleColor('#ef4444', this)"
-                            class="color-btn w-full aspect-square rounded-xl bg-red-500 shadow-sm ring-2 ring-offset-2 ring-transparent hover:scale-105 transition-all focus:outline-none"
-                            title="Red"></button>
-                        <button onclick="setBubbleColor('#eab308', this)"
-                            class="color-btn w-full aspect-square rounded-xl bg-yellow-500 shadow-sm ring-2 ring-offset-2 ring-transparent hover:scale-105 transition-all focus:outline-none"
-                            title="Yellow"></button>
-                        <button onclick="setBubbleColor('#22c55e', this)"
-                            class="color-btn w-full aspect-square rounded-xl bg-green-500 shadow-sm ring-2 ring-offset-2 ring-transparent hover:scale-105 transition-all focus:outline-none"
-                            title="Green"></button>
-                        <button onclick="setBubbleColor('#3b82f6', this)"
-                            class="color-btn w-full aspect-square rounded-xl bg-blue-500 shadow-sm ring-2 ring-offset-2 ring-transparent hover:scale-105 transition-all focus:outline-none"
-                            title="Blue"></button>
-                        <button onclick="setBubbleColor('#f97316', this)"
-                            class="color-btn w-full aspect-square rounded-xl bg-orange-500 shadow-sm ring-2 ring-offset-2 ring-transparent hover:scale-105 transition-all focus:outline-none"
-                            title="Orange"></button>
-                        <button onclick="setBubbleColor('#8b5cf6', this)"
-                            class="color-btn w-full aspect-square rounded-xl bg-violet-500 shadow-sm ring-2 ring-offset-2 ring-transparent hover:scale-105 transition-all focus:outline-none"
-                            title="Violet"></button>
-                    </div>
-                </div>
+            <!-- ── Scrollable content ── -->
+            <div class="flex-1 overflow-y-auto custom-scroll overscroll-contain">
+                <div class="p-4 md:p-5 space-y-5">
 
-                <!-- Sliders -->
-                <div class="space-y-6">
-                    <!-- Thickness -->
-                    <div class="space-y-2">
-                        <div
-                            class="flex justify-between items-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                            <span>Thickness</span>
-                            <span id="thickness-val"
-                                class="font-mono text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded">8px</span>
-                        </div>
-                        <input type="range" id="thickness-range" min="4" max="24" step="1" value="8"
-                            class="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+                    <!-- TEXT INPUT -->
+                    <div class="space-y-1.5">
+                        <label for="text-input" class="section-label">Word / Text</label>
+                        <textarea id="text-input" rows="2"
+                            class="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-slate-900 dark:text-white font-bold text-lg transition-all resize-none placeholder-slate-400"
+                            placeholder="Type a word…">Bubbling</textarea>
                     </div>
-                    <!-- Gap -->
+
+                    <!-- BUBBLE COLOR -->
                     <div class="space-y-2">
-                        <div
-                            class="flex justify-between items-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                            <span>Gap</span>
-                            <span id="gap-val"
-                                class="font-mono text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded">4px</span>
+                        <span class="section-label">Bubble colour</span>
+                        <div class="grid grid-cols-6 gap-2">
+                            <button onclick="setBubbleColor('#ef4444', this)"
+                                class="color-btn w-full aspect-square rounded-xl bg-red-500 ring-2 ring-transparent ring-offset-2 ring-offset-white dark:ring-offset-slate-900 focus:outline-none"
+                                title="Red"></button>
+                            <button onclick="setBubbleColor('#eab308', this)"
+                                class="color-btn w-full aspect-square rounded-xl bg-yellow-500 ring-2 ring-transparent ring-offset-2 ring-offset-white dark:ring-offset-slate-900 focus:outline-none"
+                                title="Yellow"></button>
+                            <button onclick="setBubbleColor('#22c55e', this)"
+                                class="color-btn w-full aspect-square rounded-xl bg-green-500 ring-2 ring-transparent ring-offset-2 ring-offset-white dark:ring-offset-slate-900 focus:outline-none"
+                                title="Green"></button>
+                            <button onclick="setBubbleColor('#3b82f6', this)"
+                                class="color-btn w-full aspect-square rounded-xl bg-blue-500 ring-2 ring-transparent ring-offset-2 ring-offset-white dark:ring-offset-slate-900 focus:outline-none"
+                                title="Blue"></button>
+                            <button onclick="setBubbleColor('#f97316', this)"
+                                class="color-btn w-full aspect-square rounded-xl bg-orange-500 ring-2 ring-transparent ring-offset-2 ring-offset-white dark:ring-offset-slate-900 focus:outline-none"
+                                title="Orange"></button>
+                            <button onclick="setBubbleColor('#8b5cf6', this)"
+                                class="color-btn w-full aspect-square rounded-xl bg-violet-500 ring-2 ring-transparent ring-offset-2 ring-offset-white dark:ring-offset-slate-900 focus:outline-none"
+                                title="Violet"></button>
                         </div>
-                        <input type="range" id="gap-range" min="0" max="16" step="1" value="4"
-                            class="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-600">
                     </div>
-                    <!-- Contour Relax -->
+
+                    <!-- TRANSPARENT BG TOGGLE + DOWNLOAD -->
+                    <div class="flex items-center justify-between bg-slate-50 dark:bg-slate-800 rounded-xl px-3 py-2.5">
+                        <p class="text-xs font-semibold text-slate-700 dark:text-slate-200">Transparent BG</p>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="transparent-bg">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <button onclick="exportPNG()"
+                        class="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold rounded-xl shadow-md hover:shadow-indigo-500/30 transition-all flex items-center justify-center gap-2 text-sm">
+                        <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                            stroke-width="2.5">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        <span id="export-btn-label"></span>Download PNG</span>
+                    </button>
+
+                    <!-- DIVIDER -->
+                    <div class="border-t border-slate-100 dark:border-slate-800"></div>
+
+                    <!-- TYPOGRAPHY -->
                     <div class="space-y-2">
-                        <div
-                            class="flex justify-between items-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                            <span>Contour Relax</span>
-                            <span id="contour-relax-val"
-                                class="font-mono text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded">0.15</span>
+                        <span class="section-label">Typography</span>
+                        <div class="grid grid-cols-2 gap-2">
+                            <select id="font-family"
+                                class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                <option value="Inter">Inter</option>
+                                <option value="Lexend" selected>Lexend</option>
+                            </select>
+                            <select id="font-weight"
+                                class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            </select>
                         </div>
-                        <input type="range" id="contour-relax-range" min="0" max="0.45" step="0.01" value="0.15"
-                            class="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-600">
                     </div>
-                    <!-- Line Height -->
-                    <div class="space-y-2">
-                        <div
-                            class="flex justify-between items-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                            <span>Line Height</span>
-                            <span id="line-height-val"
-                                class="font-mono text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded">1.1</span>
+
+                    <!-- SLIDERS GROUP -->
+                    <div class="space-y-4">
+                        <!-- Thickness -->
+                        <div class="space-y-2">
+                            <div class="flex justify-between items-center">
+                                <span class="section-label">Thickness</span>
+                                <span id="thickness-val"
+                                    class="text-[10px] font-mono font-bold text-indigo-500 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-1.5 py-0.5 rounded-md">8px</span>
+                            </div>
+                            <input type="range" id="thickness-range" min="4" max="24" step="1" value="8"
+                                class="w-full bg-slate-200 dark:bg-slate-700">
                         </div>
-                        <input type="range" id="line-height-range" min="0.8" max="2.0" step="0.1" value="1.1"
-                            class="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+                        <!-- Gap -->
+                        <div class="space-y-2">
+                            <div class="flex justify-between items-center">
+                                <span class="section-label">Gap</span>
+                                <span id="gap-val"
+                                    class="text-[10px] font-mono font-bold text-indigo-500 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-1.5 py-0.5 rounded-md">4px</span>
+                            </div>
+                            <input type="range" id="gap-range" min="0" max="16" step="1" value="4"
+                                class="w-full bg-slate-200 dark:bg-slate-700">
+                        </div>
+                        <!-- Contour Relax -->
+                        <div class="space-y-2">
+                            <div class="flex justify-between items-center">
+                                <span class="section-label">Contour Relax</span>
+                                <span id="contour-relax-val"
+                                    class="text-[10px] font-mono font-bold text-indigo-500 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-1.5 py-0.5 rounded-md">0.15</span>
+                            </div>
+                            <input type="range" id="contour-relax-range" min="0" max="0.45" step="0.01" value="0.15"
+                                class="w-full bg-slate-200 dark:bg-slate-700">
+                        </div>
+
+                        <!-- Scale / Zoom -->
+                        <div class="space-y-2">
+                            <div class="flex justify-between items-center">
+                                <span class="section-label">Zoom</span>
+                                <span id="zoom-val"
+                                    class="text-[10px] font-mono font-bold text-indigo-500 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-1.5 py-0.5 rounded-md">100%</span>
+                            </div>
+                            <input type="range" id="zoom-range" min="0.2" max="2.0" step="0.05" value="1.0"
+                                class="w-full bg-slate-200 dark:bg-slate-700">
+                        </div>
+                        <!-- Line Height -->
+                        <div class="space-y-2">
+                            <div class="flex justify-between items-center">
+                                <span class="section-label">Line Height</span>
+                                <span id="line-height-val"
+                                    class="text-[10px] font-mono font-bold text-indigo-500 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-1.5 py-0.5 rounded-md">1.1</span>
+                            </div>
+                            <input type="range" id="line-height-range" min="0.8" max="2.0" step="0.1" value="1.1"
+                                class="w-full bg-slate-200 dark:bg-slate-700">
+                        </div>
                     </div>
-                    <!-- Outline Style Toggle -->
-                    <div class="pt-2 border-t border-slate-200 dark:border-slate-700">
-                        <div class="flex items-center justify-between gap-3">
-                            <span id="label-smooth"
-                                class="toggle-label active text-slate-600 dark:text-slate-300">Smooth</span>
+
+                    <!-- TOGGLES -->
+                    <div class="space-y-3 pt-1">
+                        <!-- Edge style -->
+                        <div
+                            class="flex items-center justify-between bg-slate-50 dark:bg-slate-800 rounded-xl px-3 py-2.5">
+                            <div>
+                                <p class="text-xs font-semibold text-slate-700 dark:text-slate-200">Edge Style</p>
+                                <div class="flex gap-2 mt-0.5">
+                                    <span id="label-smooth"
+                                        class="text-[10px] font-bold text-indigo-500 dark:text-indigo-400 transition-colors">Smooth</span>
+                                    <span id="label-sharp"
+                                        class="text-[10px] text-slate-400 transition-colors">Sharp</span>
+                                </div>
+                            </div>
                             <label class="toggle-switch">
                                 <input type="checkbox" id="sharp-outline">
                                 <span class="toggle-slider"></span>
                             </label>
-                            <span id="label-sharp" class="toggle-label text-slate-400 dark:text-slate-500">Sharp
-                                edge</span>
                         </div>
-                    </div>
-                    <!-- Show Text Toggle -->
-                    <div class="pt-2 border-t border-slate-200 dark:border-slate-700">
-                        <div class="flex items-center justify-between gap-3">
-                            <span
-                                class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Show
-                                Text</span>
+
+                        <!-- Fill text -->
+                        <div
+                            class="flex items-center justify-between bg-slate-50 dark:bg-slate-800 rounded-xl px-3 py-2.5">
+                            <p class="text-xs font-semibold text-slate-700 dark:text-slate-200">Fill Text</p>
                             <label class="toggle-switch">
                                 <input type="checkbox" id="show-text" checked>
                                 <span class="toggle-slider"></span>
                             </label>
                         </div>
                     </div>
-                </div>
-                <!-- Font Options -->
-                <div class="space-y-3">
-                    <span
-                        class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Font</span>
-                    <div class="grid grid-cols-2 gap-3">
-                        <div class="relative">
-                            <select id="font-family"
-                                class="w-full appearance-none bg-slate-100 dark:bg-slate-800 border-none rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500 text-slate-900 dark:text-white">
-                                <option value="Inter">Inter</option>
-                                <option value="Lexend" selected>Lexend</option>
-                            </select>
-                            <div
-                                class="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-slate-500">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M19 9l-7 7-7-7"></path>
-                                </svg>
-                            </div>
-                        </div>
-                        <div class="relative">
-                            <select id="font-weight"
-                                class="w-full appearance-none bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow">
-                                <!-- Populated by JS -->
-                            </select>
-                            <div
-                                class="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-slate-500">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M19 9l-7 7-7-7"></path>
-                                </svg>
-                            </div>
-                        </div>
+
+                    <!-- FOOTER ACTIONS -->
+                    <div
+                        class="pt-1 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-3">
+                        <button onclick="toggleAbout()"
+                            class="text-[10px] font-bold uppercase tracking-wider text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors">
+                            About & License
+                        </button>
                     </div>
-                </div>
 
-            </div>
-
-            <!-- Export Footer -->
-            <div
-                class="p-4 md:p-6 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700 space-y-3 md:space-y-4">
-                <div class="flex items-center justify-between">
-                    <button onclick="toggleAbout()"
-                        class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
-                        About & License
-                    </button>
-                    <label class="flex items-center space-x-2 cursor-pointer group">
-                        <input type="checkbox" id="transparent-bg"
-                            class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 transition-colors">
-                        <span
-                            class="text-sm font-medium text-slate-600 dark:text-slate-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Transparent
-                            BG</span>
-                    </label>
                 </div>
-                <button onclick="exportPNG()"
-                    class="w-full py-4 px-6 bg-slate-900 dark:bg-white hover:bg-slate-800 dark:hover:bg-slate-100 text-white dark:text-slate-900 font-bold rounded-xl shadow-lg hover:shadow-xl transition-all active:scale-[0.98] flex items-center justify-center space-x-3">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
-                        stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                    </svg>
-                    <span>Download PNG</span>
-                </button>
             </div>
         </div>
-
     </div>
 
+    <!-- Hidden SVG filters for export (required by export logic) -->
+    <svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute">
+        <defs></defs>
+    </svg>
+
     <script>
-        // State
+        // ── State ──────────────────────────────────────────────────────────────
         let state = {
             text: "Bubbling",
-            color: "#ef4444", // Default Red
+            color: "#ef4444",
             thickness: 8,
             gap: 4,
             sharp: false,
@@ -554,10 +725,12 @@
             weight: 700,
             lineHeight: 1.1,
             showText: true,
-            contourRelax: 0.15
+            contourRelax: 0.15,
+            zoom: 1.0,
+            x: 0,
+            y: 0
         };
 
-        // Font Configuration
         const fontConfig = {
             'Inter': [
                 { label: 'Regular', value: 400 },
@@ -577,7 +750,7 @@
             ]
         };
 
-        // DOM Elements
+        // ── DOM Elements ───────────────────────────────────────────────────────
         const display = document.getElementById('word-display');
         const textInput = document.getElementById('text-input');
         const thicknessRange = document.getElementById('thickness-range');
@@ -598,426 +771,369 @@
         const showTextCheck = document.getElementById('show-text');
         const contourRelaxRange = document.getElementById('contour-relax-range');
         const contourRelaxVal = document.getElementById('contour-relax-val');
+        const zoomRange = document.getElementById('zoom-range');
+        const zoomVal = document.getElementById('zoom-val');
         const aboutModal = document.getElementById('about-modal');
+        const drawer = document.getElementById('controls-drawer');
+        const drawerChevron = document.getElementById('drawer-chevron');
 
-        // Initial Setup - Highlight Default Color (Red)
+        // ── Drawer logic ───────────────────────────────────────────────────────
+        let drawerExpanded = false;
+        const drawerTab = document.getElementById('drawer-tab');
+
+        function toggleDrawer() {
+            drawerExpanded = !drawerExpanded;
+            drawer.classList.toggle('drawer-expanded', drawerExpanded);
+            drawerChevron.style.transform = drawerExpanded ? 'rotate(180deg)' : '';
+            if (drawerTab) drawerTab.classList.toggle('open', drawerExpanded);
+        }
+
+        function closeDrawer() {
+            drawerExpanded = false;
+            drawer.classList.remove('drawer-expanded');
+            drawerChevron.style.transform = '';
+            if (drawerTab) drawerTab.classList.remove('open');
+        }
+
+        // ── Initialise selected color ──────────────────────────────────────────
         document.querySelector('.color-btn[title="Red"]').classList.add('ring-indigo-500', 'ring-offset-2');
         document.querySelector('.color-btn[title="Red"]').classList.remove('ring-transparent');
 
-        // Functions
+        // ── Theme ──────────────────────────────────────────────────────────────
         function toggleTheme() {
-            if (html.classList.contains('dark')) {
-                html.classList.remove('dark');
-            } else {
-                html.classList.add('dark');
-            }
+            html.classList.toggle('dark');
             updateThemeIcon();
-            updateDisplay(); // Re-render triggers color update for gap
+            updateDisplay();
         }
-
         function updateThemeIcon() {
-            if (html.classList.contains('dark')) {
-                iconSun.classList.remove('hidden');
-                iconMoon.classList.add('hidden');
-            } else {
-                iconSun.classList.add('hidden');
-                iconMoon.classList.remove('hidden');
-            }
+            const dark = html.classList.contains('dark');
+            iconSun.classList.toggle('hidden', !dark);
+            iconMoon.classList.toggle('hidden', dark);
         }
 
+        // ── About modal ────────────────────────────────────────────────────────
         function toggleAbout() {
-            if (aboutModal.classList.contains('hidden')) {
+            const hidden = aboutModal.classList.contains('hidden');
+            if (hidden) {
                 aboutModal.classList.remove('hidden');
+                aboutModal.classList.add('flex');
             } else {
                 aboutModal.classList.add('hidden');
+                aboutModal.classList.remove('flex');
             }
         }
 
+        // ── Font weights ───────────────────────────────────────────────────────
         function updateWeightOptions() {
             const weights = fontConfig[state.font];
             fontWeightSelect.innerHTML = '';
-
             let matchFound = false;
             weights.forEach(w => {
                 const option = document.createElement('option');
                 option.value = w.value;
                 option.textContent = w.label;
-                if (w.value === state.weight) {
-                    option.selected = true;
-                    matchFound = true;
-                }
+                if (w.value === state.weight) { option.selected = true; matchFound = true; }
                 fontWeightSelect.appendChild(option);
             });
-
-            // If current weight isn't available in new font, select the closest or default
             if (!matchFound) {
-                // Default to Black (900) or Bold (700) if available, else first option
-                const defaultWeight = weights.find(w => w.value === 900) || weights.find(w => w.value === 700) || weights[0];
-                state.weight = defaultWeight.value;
+                const def = weights.find(w => w.value === 900) || weights.find(w => w.value === 700) || weights[0];
+                state.weight = def.value;
                 fontWeightSelect.value = state.weight;
             }
         }
 
-        // Determine if close-counters operation should be used based on font weight
-        function shouldUseCloseCounters(weight, outlineRadius) {
-            // Always use close-counters to ensure we get a solid silhouette (bubble)
-            // regardless of font weight.
-            return true;
-        }
-
-        // Calculate adaptive closeRadius based on font weight to prevent filling counters
+        // ── Filter helpers ─────────────────────────────────────────────────────
         function getAdaptiveCloseRadius(weight, outlineRadius, fontSize) {
-            // Use radius value proportional to font size (approx 15% of font size)
-            // This is safer than a fixed pixel value and scales with text.
-            const fontSizeVal = parseFloat(fontSize) || 100;
-            // Use state.contourRelax instead of hardcoded 0.15
-            // Allow 0 for tightest possible contour (since we have solid core now)
-            return Math.max(fontSizeVal * state.contourRelax, 0);
+            const fsv = parseFloat(fontSize) || 100;
+            return Math.max(fsv * state.contourRelax, 0);
+        }
+        const REFERENCE_FONT_SIZE = 96;
+        function scaleRadius(sliderValue, currentFontSize) {
+            const scale = (parseFloat(currentFontSize) || REFERENCE_FONT_SIZE) / REFERENCE_FONT_SIZE;
+            return Math.max(sliderValue * scale, 0.5);
+        }
+        // Expand SourceAlpha with optional corner-rounding (contour relax).
+        function buildExpandedShape(radius, contourRadius, sharp, prefix) {
+            if (contourRadius > 0) {
+                const cBlur = Math.max(contourRadius / 4, 0.6);
+                if (sharp) {
+                    return {
+                        xml: `
+                            <feMorphology operator="dilate" radius="${contourRadius}" in="SourceAlpha"   result="${prefix}_cr1"/>
+                            <feMorphology operator="erode"  radius="${contourRadius}" in="${prefix}_cr1" result="${prefix}_cr2"/>
+                            <feMorphology operator="dilate" radius="${radius}"        in="${prefix}_cr2" result="${prefix}_exp"/>
+                        `,
+                        result: `${prefix}_exp`
+                    };
+                } else {
+                    return {
+                        xml: `
+                            <feMorphology operator="dilate" radius="${contourRadius}" in="SourceAlpha"     result="${prefix}_cr1"/>
+                            <feMorphology operator="erode"  radius="${contourRadius}" in="${prefix}_cr1"   result="${prefix}_cr2"/>
+                            <feGaussianBlur stdDeviation="${cBlur}"                  in="${prefix}_cr2"   result="${prefix}_crBlur"/>
+                            <feComponentTransfer                                     in="${prefix}_crBlur" result="${prefix}_crRelaxed">
+                                <feFuncA type="linear" slope="30" intercept="-14"/>
+                            </feComponentTransfer>
+                            <feMorphology operator="dilate" radius="${radius}" in="${prefix}_crRelaxed" result="${prefix}_exp"/>
+                        `,
+                        result: `${prefix}_exp`
+                    };
+                }
+            } else {
+                return {
+                    xml: `<feMorphology operator="dilate" radius="${radius}" in="SourceAlpha" result="${prefix}_exp"/>`,
+                    result: `${prefix}_exp`
+                };
+            }
         }
 
-        function getFilterContent(radius, color, closeCounters = false, sharp = false, fontSize = '100px') {
-            const blurAmount = sharp ? 0 : Math.max(radius * 0.15, 0.5);
-
-            // User-controlled contour tightness
+        function getFilterContent(radius, color, _unused = false, sharp = false, fontSize = '100px', prefix = 'gf') {
             const contourRadius = getAdaptiveCloseRadius(state.weight, radius, fontSize);
-            const smoothRadius = Math.max(contourRadius / 5, 0.5);
+            const aaBlur = Math.max(radius * 0.12, 0.4);
+            const AA_SLOPE = 8;
+            const AA_OFFSET = -3.5;
 
-            // CREATIVE SOLUTION: Protect ONLY counters (holes inside letters), not gaps between letters
-            const counterProtection = `
-                <!-- Step 1: Get ALL transparent areas (counters + gaps) -->
-                <feFlood flood-color="white" result="white"/>
-                <feComposite operator="out" in="white" in2="SourceAlpha" result="allTransparent"/>
-
-                <!-- Step 2: Identify large gaps (erode heavily then dilate back) -->
-                <!-- Only large areas survive this operation -->
-                <feMorphology operator="erode" radius="8" in="allTransparent" result="erodedTransparent"/>
-                <feMorphology operator="dilate" radius="8" in="erodedTransparent" result="largeGaps"/>
-
-                <!-- Step 3: Subtract large gaps from all transparent to get just counters -->
-                <feComposite operator="out" in="allTransparent" in2="largeGaps" result="countersOnly"/>
-
-                <!-- Step 4: Shrink slightly for anti-aliasing -->
-                <feMorphology operator="erode" radius="0.5" in="countersOnly" result="protectedAreas"/>
-            `;
+            const { xml: shapeXml, result: expandedNode } = buildExpandedShape(radius, contourRadius, sharp, prefix);
 
             if (sharp) {
                 return `
-                    ${counterProtection}
-
-                    <!-- Apply contour relaxation if set -->
-                    ${contourRadius > 0 ? `
-                        <feMorphology operator="dilate" radius="${contourRadius}" in="SourceAlpha" result="relaxed1"/>
-                        <feMorphology operator="erode" radius="${contourRadius}" in="relaxed1" result="relaxed"/>
-                    ` : `
-                        <feComposite operator="over" in="SourceAlpha" result="relaxed"/>
-                    `}
-
-                    <!-- Final Expansion to desired thickness -->
-                    <feMorphology operator="dilate" radius="${radius}" in="relaxed" result="dilated"/>
-
-                    <!-- CRITICAL: Subtract original transparent areas to preserve ALL counters -->
-                    <feComposite operator="out" in="dilated" in2="protectedAreas" result="finalShape"/>
-
-                    <feFlood flood-color="${color}" result="color"/>
-                    <feComposite operator="in" in="color" in2="finalShape"/>
+                    ${shapeXml}
+                    <feFlood flood-color="${color}" result="${prefix}_col"/>
+                    <feComposite operator="in" in="${prefix}_col" in2="${expandedNode}"/>
                 `;
             } else {
-                // Soft version: with smoothing and blur
                 return `
-                    ${counterProtection}
-
-                    <!-- Apply contour relaxation if set -->
-                    ${contourRadius > 0 ? `
-                        <feMorphology operator="dilate" radius="${contourRadius}" in="SourceAlpha" result="relaxed1"/>
-                        <feMorphology operator="erode" radius="${contourRadius}" in="relaxed1" result="relaxedBlocky"/>
-
-                        <!-- Smoothing Step to round corners -->
-                        <feGaussianBlur stdDeviation="${smoothRadius}" in="relaxedBlocky" result="relaxedBlur"/>
-                        <feComponentTransfer in="relaxedBlur" result="relaxed">
-                            <feFuncA type="linear" slope="100" intercept="-50"/>
-                        </feComponentTransfer>
-                    ` : `
-                        <feComposite operator="over" in="SourceAlpha" result="relaxed"/>
-                    `}
-
-                    <!-- Final Expansion to desired thickness -->
-                    <feMorphology operator="dilate" radius="${radius}" in="relaxed" result="dilated"/>
-
-                    <feGaussianBlur stdDeviation="${blurAmount}" in="dilated" result="blur"/>
-                    <feComponentTransfer in="blur" result="blurredShape">
-                        <feFuncA type="table" tableValues="0 0 0.1 0.6 1 1 1 1"/>
+                    ${shapeXml}
+                    <feGaussianBlur stdDeviation="${aaBlur}" in="${expandedNode}" result="${prefix}_aa"/>
+                    <feComponentTransfer in="${prefix}_aa" result="${prefix}_shaped">
+                        <feFuncA type="linear" slope="${AA_SLOPE}" intercept="${AA_OFFSET}"/>
                     </feComponentTransfer>
-
-                    <!-- CRITICAL: Subtract original transparent areas to preserve ALL counters -->
-                    <feComposite operator="out" in="blurredShape" in2="protectedAreas" result="finalShape"/>
-
-                    <feFlood flood-color="${color}" result="color"/>
-                    <feComposite operator="in" in="color" in2="finalShape"/>
+                    <feFlood flood-color="${color}" result="${prefix}_col"/>
+                    <feComposite operator="in" in="${prefix}_col" in2="${prefix}_shaped"/>
                 `;
             }
         }
 
         function getRingFilterContent(gapRadius, totalRadius, outlineColor, sharp = false, fontSize = '100px') {
             const closeRadius = getAdaptiveCloseRadius(state.weight, totalRadius, fontSize);
-            const smoothRadius = Math.max(closeRadius / 5, 0.5);
+            const AA_SLOPE = 8;
+            const AA_OFFSET = -3.5;
 
-            // CREATIVE SOLUTION: Protect ONLY counters (holes inside letters), not gaps between letters
-            const counterProtection = `
-                <!-- Step 1: Get ALL transparent areas (counters + gaps) -->
-                <feFlood flood-color="white" result="white"/>
-                <feComposite operator="out" in="white" in2="SourceAlpha" result="allTransparent"/>
-
-                <!-- Step 2: Identify large gaps (erode heavily then dilate back) -->
-                <feMorphology operator="erode" radius="8" in="allTransparent" result="erodedTransparent"/>
-                <feMorphology operator="dilate" radius="8" in="erodedTransparent" result="largeGaps"/>
-
-                <!-- Step 3: Subtract large gaps to get just counters -->
-                <feComposite operator="out" in="allTransparent" in2="largeGaps" result="countersOnly"/>
-
-                <!-- Step 4: Shrink slightly for anti-aliasing -->
-                <feMorphology operator="erode" radius="0.5" in="countersOnly" result="protectedAreas"/>
-            `;
+            const { xml: outerXml, result: outerNode } = buildExpandedShape(totalRadius, closeRadius, sharp, 'rf_o');
+            const { xml: innerXml, result: innerNode } = buildExpandedShape(gapRadius, closeRadius, sharp, 'rf_i');
 
             if (sharp) {
                 return `
-                    ${counterProtection}
-
-                    <!-- Outer Shape with optional contour relaxation -->
-                    ${closeRadius > 0 ? `
-                        <feMorphology operator="dilate" radius="${closeRadius}" in="SourceAlpha" result="oRelaxed1"/>
-                        <feMorphology operator="erode" radius="${closeRadius}" in="oRelaxed1" result="oRelaxed"/>
-                    ` : `
-                        <feComposite operator="over" in="SourceAlpha" result="oRelaxed"/>
-                    `}
-
-                    <feMorphology operator="dilate" radius="${totalRadius}" in="oRelaxed" result="oDilated"/>
-
-                    <!-- CRITICAL: Subtract original transparent areas to preserve ALL counters -->
-                    <feComposite operator="out" in="oDilated" in2="protectedAreas" result="punchedOuter"/>
-
-                    <!-- Inner Shape (Gap) with same contour relaxation -->
-                    ${closeRadius > 0 ? `
-                        <feMorphology operator="dilate" radius="${closeRadius}" in="SourceAlpha" result="iRelaxed1"/>
-                        <feMorphology operator="erode" radius="${closeRadius}" in="iRelaxed1" result="iRelaxed"/>
-                    ` : `
-                        <feComposite operator="over" in="SourceAlpha" result="iRelaxed"/>
-                    `}
-
-                    <feMorphology operator="dilate" radius="${gapRadius}" in="iRelaxed" result="iDilated"/>
-
-                    <!-- CRITICAL: Subtract original transparent areas to preserve ALL counters -->
-                    <feComposite operator="out" in="iDilated" in2="protectedAreas" result="punchedInner"/>
-
-                    <!-- Ring -->
-                    <feComposite operator="out" in="punchedOuter" in2="punchedInner" result="ring"/>
-                    <feFlood flood-color="${outlineColor}" flood-opacity="1" result="color"/>
-                    <feComposite operator="in" in="color" in2="ring"/>
+                    ${outerXml}
+                    ${innerXml}
+                    <feComposite operator="out" in="${outerNode}" in2="${innerNode}" result="ring"/>
+                    <feFlood flood-color="${outlineColor}" result="rf_col"/>
+                    <feComposite operator="in" in="rf_col" in2="ring"/>
                 `;
             } else {
-                const outerBlur = Math.max(totalRadius * 0.15, 0.5);
-                const innerBlur = Math.max(gapRadius * 0.15, 0.5);
-
+                const outerAA = Math.max(totalRadius * 0.12, 0.4);
+                const innerAA = Math.max(gapRadius * 0.12, 0.4);
                 return `
-                    ${counterProtection}
-
-                    <!-- Outer Shape Construction with optional contour relaxation -->
-                    ${closeRadius > 0 ? `
-                        <feMorphology operator="dilate" radius="${closeRadius}" in="SourceAlpha" result="oRelaxed1"/>
-                        <feMorphology operator="erode" radius="${closeRadius}" in="oRelaxed1" result="oRelaxedBlocky"/>
-                        <feGaussianBlur stdDeviation="${smoothRadius}" in="oRelaxedBlocky" result="oRelaxedBlur"/>
-                        <feComponentTransfer in="oRelaxedBlur" result="oRelaxed">
-                            <feFuncA type="linear" slope="100" intercept="-50"/>
-                        </feComponentTransfer>
-                    ` : `
-                        <feComposite operator="over" in="SourceAlpha" result="oRelaxed"/>
-                    `}
-
-                    <feMorphology operator="dilate" radius="${totalRadius}" in="oRelaxed" result="oDilated"/>
-                    <feGaussianBlur stdDeviation="${outerBlur}" in="oDilated" result="oBlur"/>
-                    <feComponentTransfer in="oBlur" result="outerBlurred">
-                        <feFuncA type="table" tableValues="0 0 0 0.3 1 1 1 1"/>
+                    ${outerXml}
+                    <feGaussianBlur stdDeviation="${outerAA}" in="${outerNode}" result="rf_oBlur"/>
+                    <feComponentTransfer in="rf_oBlur" result="rf_oShaped">
+                        <feFuncA type="linear" slope="${AA_SLOPE}" intercept="${AA_OFFSET}"/>
                     </feComponentTransfer>
-
-                    <!-- CRITICAL: Subtract original transparent areas to preserve ALL counters -->
-                    <feComposite operator="out" in="outerBlurred" in2="protectedAreas" result="punchedOuter"/>
-
-                    <!-- Inner Shape Construction with same contour relaxation -->
-                    ${closeRadius > 0 ? `
-                        <feMorphology operator="dilate" radius="${closeRadius}" in="SourceAlpha" result="iRelaxed1"/>
-                        <feMorphology operator="erode" radius="${closeRadius}" in="iRelaxed1" result="iRelaxedBlocky"/>
-                        <feGaussianBlur stdDeviation="${smoothRadius}" in="iRelaxedBlocky" result="iRelaxedBlur"/>
-                        <feComponentTransfer in="iRelaxedBlur" result="iRelaxed">
-                            <feFuncA type="linear" slope="100" intercept="-50"/>
-                        </feComponentTransfer>
-                    ` : `
-                        <feComposite operator="over" in="SourceAlpha" result="iRelaxed"/>
-                    `}
-
-                    <feMorphology operator="dilate" radius="${gapRadius}" in="iRelaxed" result="iDilated"/>
-                    <feGaussianBlur stdDeviation="${innerBlur}" in="iDilated" result="iBlur"/>
-                    <feComponentTransfer in="iBlur" result="innerBlurred">
-                        <feFuncA type="table" tableValues="0 0 0 0.3 1 1 1 1"/>
+                    ${innerXml}
+                    <feGaussianBlur stdDeviation="${innerAA}" in="${innerNode}" result="rf_iBlur"/>
+                    <feComponentTransfer in="rf_iBlur" result="rf_iShaped">
+                        <feFuncA type="linear" slope="${AA_SLOPE}" intercept="${AA_OFFSET}"/>
                     </feComponentTransfer>
-
-                    <!-- CRITICAL: Subtract original transparent areas to preserve ALL counters -->
-                    <feComposite operator="out" in="innerBlurred" in2="protectedAreas" result="punchedInner"/>
-
-                    <!-- Ring Composition -->
-                    <feComposite operator="out" in="punchedOuter" in2="punchedInner" result="ring"/>
-                    <feFlood flood-color="${outlineColor}" flood-opacity="1" result="color"/>
-                    <feComposite operator="in" in="color" in2="ring"/>
+                    <feComposite operator="out" in="rf_oShaped" in2="rf_iShaped" result="ring"/>
+                    <feFlood flood-color="${outlineColor}" result="rf_col"/>
+                    <feComposite operator="in" in="rf_col" in2="ring"/>
                 `;
             }
         }
 
-        function getContourFilterUrl(radius, color, closeCounters = false, sharp = false, fontSize = '100px') {
-            // Note: We do NOT encode the color here because the entire SVG string is encoded below.
-            // encodeURIComponent('#ff0000') -> '%23ff0000'.
-            // If we double encode, we get '%2523ff0000', which breaks the SVG filter.
-            const content = getFilterContent(radius, color, closeCounters, sharp, fontSize);
-            // Increased filter region from 200% to 500% to prevent clipping with large dilations
+        function getContourFilterUrl(radius, color, _unused = false, sharp = false, fontSize = '100px') {
+            const content = getFilterContent(radius, color, false, sharp, fontSize);
             const svg = `<svg xmlns="http://www.w3.org/2000/svg"><filter id="f" x="-200%" y="-200%" width="500%" height="500%">${content}</filter></svg>`;
             return `url('data:image/svg+xml,${encodeURIComponent(svg)}#f')`;
         }
 
-
+        // ── Update display ─────────────────────────────────────────────────────
         function updateDisplay() {
-            // Update Text
             display.textContent = state.text;
             display.setAttribute('data-text', state.text);
-
-            // Update Font
             display.style.fontFamily = `"${state.font}", sans-serif`;
             display.style.fontWeight = state.weight;
-
-            // Update Line Height
             display.style.lineHeight = state.lineHeight;
             lineHeightVal.textContent = state.lineHeight;
-
-            // Update Contour Relax Value
             contourRelaxVal.textContent = state.contourRelax.toFixed(2);
-
-            // Update Text Visibility (Color)
-            if (state.showText) {
-                display.style.color = ''; // Reset to default/class color
-            } else {
-                display.style.color = 'transparent'; // Use transparent to hide text
-            }
-
-            // Update Values
+            display.style.color = state.showText ? '' : 'transparent';
             thicknessVal.textContent = state.thickness + 'px';
             gapVal.textContent = state.gap + 'px';
 
-            // Calculate Radii
-            const gapRadius = state.gap;
-            const totalRadius = state.gap + state.thickness;
-
-            // Determine Gap Color (Must match background)
             const isDark = html.classList.contains('dark');
-            const gapColor = isDark ? '#020617' : '#f8fafc';
-
-            // Get current font size for adaptive filtering
+            const gapColor = isDark ? '#000000' : '#ffffff';
             const fontSize = window.getComputedStyle(display).fontSize;
+            const scaledGap = scaleRadius(state.gap, fontSize);
+            const scaledTotal = scaleRadius(state.gap + state.thickness, fontSize);
+            // NEW: Combined filter generation
+            // We want:
+            // 1. Outline (Color = state.color, Radius = Total)
+            // 2. Gap (Color = BgColor, Radius = Gap) -> ON TOP of Outline
+            // 3. SourceGraphic (Text) -> ON TOP of Gap
+            // Note: If state.showText is false, we omit SourceGraphic or make it transparent.
 
-            // Generate Filters
-            // Gap layer uses closeCounters=true to fill letter holes
-            const gapFilter = getContourFilterUrl(gapRadius, gapColor, true, state.sharp, fontSize);
-            const outlineFilter = getContourFilterUrl(totalRadius, state.color, true, state.sharp, fontSize);
+            const safeOutlineColor = state.color; // CSS color string
+            const safeGapColor = gapColor; // CSS color string
 
-            // Apply Variables
-            display.style.setProperty('--contour-filter-gap', gapFilter);
-            display.style.setProperty('--contour-filter-outline', outlineFilter);
+            // We build a single filter that generates both layers and merges them.
+            // However, SVG filters on HTML elements use 'SourceGraphic' as the input (the text).
+            // We can generate the outline and gap from SourceAlpha.
+
+            // To avoid complex string concatenation, we'll try to reuse getFilterContent logic but adapted.
+            // Actually, let's write a dedicated function for the combined filter to ensure correct layering.
+            const combinedFilter = getCombinedFilterUrl(scaledGap, scaledTotal, safeGapColor, safeOutlineColor, state.sharp, fontSize);
+
+            display.style.setProperty('--contour-filter-combined', combinedFilter);
+            display.style.transform = `translate(${state.x}px, ${state.y}px)`;
+            zoomVal.textContent = Math.round(state.zoom * 100) + '%';
         }
 
+        function getCombinedFilterContent(gapRadius, totalRadius, gapColor, outlineColor, sharp, fontSize) {
+            // Reused logic for both preview and export
+            const outlineContent = getFilterContent(totalRadius, outlineColor, true, sharp, fontSize, 'outline');
+            const gapContent = getFilterContent(gapRadius, gapColor, true, sharp, fontSize, 'gap');
+
+            const closeRadius = getAdaptiveCloseRadius(state.weight, totalRadius, fontSize);
+            const aaBlur = Math.max(totalRadius * 0.12, 0.4);
+            const roughGapAA = Math.max(gapRadius * 0.12, 0.4);
+            const AA_SLOPE = 8;
+            const AA_OFFSET = -3.5;
+
+            // Helper to generate expansion XML within this scope
+            const mkExpand = (r, name) => {
+                const { xml, result } = buildExpandedShape(r, closeRadius, sharp, name);
+                return { xml, result };
+            };
+
+            const out = mkExpand(totalRadius, 'out');
+            const gap = mkExpand(gapRadius, 'gap');
+
+            let outlineBlock = '';
+            let gapBlock = '';
+
+            if (sharp) {
+                outlineBlock = `
+                    ${out.xml}
+                    <feFlood flood-color="${outlineColor}" result="col_out"/>
+                    <feComposite operator="in" in="col_out" in2="${out.result}" result="res_out"/>
+                `;
+                gapBlock = `
+                    ${gap.xml}
+                    <feFlood flood-color="${gapColor}" result="col_gap"/>
+                    <feComposite operator="in" in="col_gap" in2="${gap.result}" result="res_gap"/>
+                `;
+            } else {
+                outlineBlock = `
+                    ${out.xml}
+                    <feGaussianBlur stdDeviation="${aaBlur}" in="${out.result}" result="blur_out"/>
+                    <feComponentTransfer in="blur_out" result="shape_out_aa">
+                         <feFuncA type="linear" slope="${AA_SLOPE}" intercept="${AA_OFFSET}"/>
+                    </feComponentTransfer>
+                    <feFlood flood-color="${outlineColor}" result="col_out"/>
+                    <feComposite operator="in" in="col_out" in2="shape_out_aa" result="res_out"/>
+                `;
+                gapBlock = `
+                    ${gap.xml}
+                    <feGaussianBlur stdDeviation="${roughGapAA}" in="${gap.result}" result="blur_gap"/>
+                    <feComponentTransfer in="blur_gap" result="shape_gap_aa">
+                         <feFuncA type="linear" slope="${AA_SLOPE}" intercept="${AA_OFFSET}"/>
+                    </feComponentTransfer>
+                    <feFlood flood-color="${gapColor}" result="col_gap"/>
+                    <feComposite operator="in" in="col_gap" in2="shape_gap_aa" result="res_gap"/>
+                `;
+            }
+
+            // Merge order: Outline (bottom), Gap (middle), SourceGraphic (top)
+            // If Text is hidden, omit SourceGraphic.
+            // BUT: modifying style.color handles text visibility usually. 
+            // However, SourceGraphic contains the original text color.
+            // If display.style.color is transparent, SourceGraphic is invisible?
+            // Yes.
+
+            return `
+                    ${outlineBlock}
+                    ${gapBlock}
+                    <feMerge>
+                        <feMergeNode in="res_out"/>
+                        <feMergeNode in="res_gap"/>
+                        <feMergeNode in="SourceGraphic"/>
+                    </feMerge>
+            `;
+        }
+
+        function getCombinedFilterUrl(gapRadius, totalRadius, gapColor, outlineColor, sharp, fontSize) {
+            const content = getCombinedFilterContent(gapRadius, totalRadius, gapColor, outlineColor, sharp, fontSize);
+            const svg = `
+            <svg xmlns="http://www.w3.org/2000/svg">
+                <filter id="c" x="-200%" y="-200%" width="500%" height="500%">
+                    ${content}
+                </filter>
+            </svg>`;
+            return `url('data:image/svg+xml,${encodeURIComponent(svg)}#c')`;
+        }
+
+        // ── Set bubble color ───────────────────────────────────────────────────
         function setBubbleColor(color, btn) {
             state.color = color;
-
-            // Reset Buttons
             document.querySelectorAll('.color-btn').forEach(b => {
                 b.classList.remove('ring-indigo-500', 'ring-offset-2');
                 b.classList.add('ring-transparent');
             });
-
-            // Highlight Selected
             btn.classList.add('ring-indigo-500', 'ring-offset-2');
             btn.classList.remove('ring-transparent');
-
             updateDisplay();
         }
 
+        // ── Export helpers ─────────────────────────────────────────────────────
         function hexToRgb(hex) {
-            // Expand shorthand form (e.g. "03F") to full form (e.g. "0033FF")
             var shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
-            hex = hex.replace(shorthandRegex, function (m, r, g, b) {
-                return r + r + g + g + b + b;
-            });
-
+            hex = hex.replace(shorthandRegex, (m, r, g, b) => r + r + g + g + b + b);
             var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
             return result ? `rgb(${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)})` : hex;
         }
 
-        // Cache for embedded font data by key (Family-Weight)
         const fontCache = new Map();
-
         async function getEmbeddedFont(fontFamily, fontWeight) {
             const cacheKey = `${fontFamily}-${fontWeight}`;
-
-            // Return cached font if available
-            if (fontCache.has(cacheKey)) {
-                return fontCache.get(cacheKey);
-            }
-
+            if (fontCache.has(cacheKey)) return fontCache.get(cacheKey);
             try {
-                // Fetch the specific font family and weight
                 const url = `https://fonts.googleapis.com/css2?family=${fontFamily}:wght@${fontWeight}&display=swap`;
-                console.log(`Fetching embedded font from: ${url}`);
-
                 const cssResponse = await fetch(url);
                 let cssText = await cssResponse.text();
-
-                // Extract all font URLs (woff2, ttf, etc.)
-                // Regex matches url('...') or url("...") or url(...)
                 const urlRegex = /url\((?:['"]?)(https:\/\/fonts\.gstatic\.com\/[^)'"]+)(?:['"]?)\)/g;
                 const matches = [...cssText.matchAll(urlRegex)];
-
-                if (matches.length === 0) {
-                    console.error('Could not extract font URLs from CSS');
-                    return '';
-                }
-
-                // Fetch all fonts
+                if (matches.length === 0) return '';
                 const uniqueUrls = [...new Set(matches.map(m => m[1]))];
-                console.log(`Found ${uniqueUrls.length} font subsets for ${fontFamily} ${fontWeight}. Fetching...`);
-
                 const urlForMap = new Map();
-
-                await Promise.all(uniqueUrls.map(async (url) => {
+                await Promise.all(uniqueUrls.map(async (u) => {
                     try {
-                        const response = await fetch(url);
+                        const response = await fetch(u);
                         const blob = await response.blob();
                         const base64 = await new Promise((resolve) => {
                             const reader = new FileReader();
                             reader.onloadend = () => resolve(reader.result);
                             reader.readAsDataURL(blob);
                         });
-                        urlForMap.set(url, base64);
-                    } catch (err) {
-                        console.warn('Failed to fetch font subset:', url, err);
-                    }
+                        urlForMap.set(u, base64);
+                    } catch (err) { console.warn('Font subset failed:', u, err); }
                 }));
-
-                // Replace URLs in CSS with Data URIs
-                for (const [url, dataUri] of urlForMap) {
-                    // Use split/join for global replacement of the string literal
-                    cssText = cssText.split(url).join(dataUri);
+                for (const [u, dataUri] of urlForMap) {
+                    cssText = cssText.split(u).join(dataUri);
                 }
-
                 fontCache.set(cacheKey, cssText);
                 return cssText;
-
             } catch (error) {
                 console.error('Failed to fetch font:', error);
-                // Fallback to simple font-family without embedding
                 return '';
             }
         }
@@ -1025,131 +1141,107 @@
         async function buildExportSVG() {
             const isTransparent = transparentBgCheck.checked;
             const isDark = html.classList.contains('dark');
-            const bgColor = isDark ? '#020617' : '#f8fafc';
-            // Determine text color based on state (or theme if showing text)
-            let textColor;
-            if (state.showText) {
-                textColor = isDark ? '#ffffff' : '#000000';
-            } else {
-                textColor = 'none'; // Or 'transparent', but 'none' for fill is safer in SVG
-            }
-
+            const bgColor = isDark ? '#000000' : '#ffffff';
+            const textColor = state.showText ? (isDark ? '#ffffff' : '#000000') : 'none';
             const safeBgColor = hexToRgb(bgColor);
-            // safeTextColor only matters if we are filling.
-            const safeTextColor = (textColor === 'none') ? 'none' : hexToRgb(textColor);
+            const safeTextColor = textColor === 'none' ? 'none' : hexToRgb(textColor);
             const safeOutlineColor = hexToRgb(state.color);
             const gapColor = safeBgColor;
 
             const rect = display.getBoundingClientRect();
-            const padding = (state.gap + state.thickness + 60);
-            const width = Math.ceil(rect.width + (padding * 2));
-            const height = Math.ceil(rect.height + (padding * 2));
-
-            const gapRadius = state.gap;
-            const totalRadius = state.gap + state.thickness;
             const fontSize = Math.floor(parseInt(window.getComputedStyle(display).fontSize));
+            const gapRadius = scaleRadius(state.gap, fontSize);
+            const totalRadius = scaleRadius(state.gap + state.thickness, fontSize);
+            const padding = totalRadius + 60;
+            const width = Math.ceil(rect.width + padding * 2);
+            const height = Math.ceil(rect.height + padding * 2);
             const filterRegion = `x="${-width}" y="${-height}" width="${width * 2}" height="${height * 2}" filterUnits="userSpaceOnUse" primitiveUnits="userSpaceOnUse"`;
-
-            // Get embedded font data for current choice
             const fontData = await getEmbeddedFont(state.font, state.weight);
-
             const lines = state.text.split('\n');
-            // absolute pixels for line height based on font size
-            const lineHeightAbs = fontSize * state.lineHeight;
-
-            // Build text content with tspans
-
-            // Vertical centering logic for SVG:
-            // We want the block of text to be centered vertically around y=0.
-            // The first line starts at: -((numLines - 1) * lineHeight) / 2
-            // We use 'em' relative units for dy to be robust.
-            // dy is relative to the previous line. 
-            // For the first line, dy shifts it from the baseline (which is central).
-
-            // Calculation:
-            // If 1 line: shift = 0.
-            // If 2 lines: shift first line up by 0.5 * LH.
-            // If 3 lines: shift first line up by 1.0 * LH.
-            // Formula: -((lines.length - 1) * state.lineHeight) / 2 + 'em'
-
             const firstDy = -((lines.length - 1) * state.lineHeight) / 2 + 'em';
             const subsequentDy = state.lineHeight + 'em';
-
             const textContent = lines.map((line, i) => {
                 const dy = i === 0 ? firstDy : subsequentDy;
-                // Escape XML chars
                 const safeLine = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                 return `<tspan x="0" dy="${dy}">${safeLine}</tspan>`;
             }).join('');
-
+            const textAttrs = `font-family="${state.font}, system-ui, -apple-system, sans-serif" font-weight="${state.weight}" font-size="${fontSize}" text-anchor="middle" dominant-baseline="central"`;
 
             let svgData;
 
-            const textAttrs = `font-family="${state.font}, system-ui, -apple-system, sans-serif" font-weight="${state.weight}" font-size="${fontSize}" text-anchor="middle" dominant-baseline="central"`;
-
+            // For transparent export: carve the gap as a real transparent hole using a ring filter
+            // (outer dilated shape MINUS inner/gap shape = only the coloured ring is drawn).
+            // For opaque export: use the combined fill approach (gap filled with bg colour).
+            let filterContent;
             if (isTransparent) {
-                // Ring filter: subtracts gap from outline so the gap is truly transparent
-                const ringContent = getRingFilterContent(gapRadius, totalRadius, safeOutlineColor, state.sharp, fontSize);
-                svgData = `
-                <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
-                    <defs>
-                        <style>
-                            ${fontData}
-                        </style>
-                        <filter id="ring" ${filterRegion}>${ringContent}</filter>
-                    </defs>
-                    <g transform="translate(${width / 2}, ${height / 2})">
-                        <!-- Pseudo-element equivalent: outlining -->
-                        <text x="0" y="0" ${textAttrs} filter="url(#ring)" fill="black">${textContent}</text>
-                        <!-- Main Text Fill: only if showText is true -->
-                        ${state.showText ? `<text x="0" y="0" ${textAttrs} fill="${safeTextColor}" stroke="none">${textContent}</text>` : ''}
-                    </g>
-                </svg>
-                `;
+                const closeRadius = getAdaptiveCloseRadius(state.weight, totalRadius, fontSize);
+                const AA_SLOPE = 8, AA_OFFSET = -3.5;
+                const { xml: outerXml, result: outerNode } = buildExpandedShape(totalRadius, closeRadius, state.sharp, 'tr_o');
+                const { xml: innerXml, result: innerNode } = buildExpandedShape(gapRadius, closeRadius, state.sharp, 'tr_i');
+                if (state.sharp) {
+                    filterContent = `
+                        ${outerXml}
+                        ${innerXml}
+                        <feComposite operator="out" in="${outerNode}" in2="${innerNode}" result="tr_ring"/>
+                        <feFlood flood-color="${safeOutlineColor}" result="tr_col"/>
+                        <feComposite operator="in" in="tr_col" in2="tr_ring" result="tr_ringCol"/>
+                        <feMerge>
+                            <feMergeNode in="tr_ringCol"/>
+                            <feMergeNode in="SourceGraphic"/>
+                        </feMerge>
+                    `;
+                } else {
+                    const outerAA = Math.max(totalRadius * 0.12, 0.4);
+                    const innerAA = Math.max(gapRadius * 0.12, 0.4);
+                    filterContent = `
+                        ${outerXml}
+                        <feGaussianBlur stdDeviation="${outerAA}" in="${outerNode}" result="tr_oBlur"/>
+                        <feComponentTransfer in="tr_oBlur" result="tr_oShaped">
+                            <feFuncA type="linear" slope="${AA_SLOPE}" intercept="${AA_OFFSET}"/>
+                        </feComponentTransfer>
+                        ${innerXml}
+                        <feGaussianBlur stdDeviation="${innerAA}" in="${innerNode}" result="tr_iBlur"/>
+                        <feComponentTransfer in="tr_iBlur" result="tr_iShaped">
+                            <feFuncA type="linear" slope="${AA_SLOPE}" intercept="${AA_OFFSET}"/>
+                        </feComponentTransfer>
+                        <feComposite operator="out" in="tr_oShaped" in2="tr_iShaped" result="tr_ring"/>
+                        <feFlood flood-color="${safeOutlineColor}" result="tr_col"/>
+                        <feComposite operator="in" in="tr_col" in2="tr_ring" result="tr_ringCol"/>
+                        <feMerge>
+                            <feMergeNode in="tr_ringCol"/>
+                            <feMergeNode in="SourceGraphic"/>
+                        </feMerge>
+                    `;
+                }
             } else {
-                // Gap+outline approach: gap painted in background color (for raster export with solid bg)
-                const gapContent = getFilterContent(gapRadius, gapColor, true, state.sharp, fontSize).replace('<feFlood', '<feFlood flood-opacity="1"');
-                const outlineContent = getFilterContent(totalRadius, safeOutlineColor, true, state.sharp, fontSize).replace('<feFlood', '<feFlood flood-opacity="1"');
-                svgData = `
-                <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
-                    <defs>
-                        <style>
-                            ${fontData}
-                        </style>
-                        <filter id="gap" ${filterRegion}>${gapContent}</filter>
-                        <filter id="outline" ${filterRegion}>${outlineContent}</filter>
-                    </defs>
-                    <g transform="translate(${width / 2}, ${height / 2})">
-                        <text x="0" y="0" ${textAttrs} filter="url(#outline)" fill="black">${textContent}</text>
-                        <text x="0" y="0" ${textAttrs} filter="url(#gap)" fill="black">${textContent}</text>
-                        <!-- Main Text Fill -->
-                        ${state.showText ? `<text x="0" y="0" ${textAttrs} fill="${safeTextColor}" stroke="none">${textContent}</text>` : ''}
-                    </g>
-                </svg>
-                `;
+                filterContent = getCombinedFilterContent(gapRadius, totalRadius, gapColor, safeOutlineColor, state.sharp, fontSize);
             }
+
+            svgData = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+                <defs><style>${fontData}</style>
+                <filter id="combined" ${filterRegion}>${filterContent}</filter></defs>
+                <g transform="translate(${width / 2}, ${height / 2})">
+                    <text x="0" y="0" ${textAttrs} filter="url(#combined)" fill="${state.showText ? safeTextColor : 'none'}">${textContent}</text>
+                </g>
+            </svg>`;
 
             return { svgData, width, height, bgColor, isTransparent };
         }
 
         async function exportPNG() {
             try {
-                // Wait for fonts to load before exporting
                 await document.fonts.ready;
-
                 const { svgData, width, height, bgColor, isTransparent } = await buildExportSVG();
-
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
                 const scale = 4;
                 canvas.width = width * scale;
                 canvas.height = height * scale;
-
                 if (!isTransparent) {
                     ctx.fillStyle = bgColor;
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
                 }
-
                 const img = new Image();
                 img.onload = () => {
                     try {
@@ -1158,121 +1250,220 @@
                         link.download = `word-bubbling-${state.text}.png`;
                         link.href = canvas.toDataURL('image/png');
                         link.click();
-                    } catch (err) {
-                        console.error(err);
-                        alert("Export failed: " + err.message);
-                    }
+                    } catch (err) { alert("Export failed: " + err.message); }
                 };
-                img.onerror = (e) => {
-                    console.error(e);
-                    alert("Export failed: Could not load internal SVG.");
-                };
+                img.onerror = () => alert("Export failed: Could not load internal SVG.");
                 img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
-
-            } catch (e) {
-                console.error(e);
-                alert("Export failed to start: " + e.message);
-            }
+            } catch (e) { alert("Export failed: " + e.message); }
         }
 
-        // Event Listeners
-        // Event Listeners
+        // ── Event listeners ────────────────────────────────────────────────────
         textInput.addEventListener('input', (e) => {
-            // Don't trim immediately so user can type spaces/newlines
             state.text = e.target.value || "Bubbling";
+            fitFontSize();
             updateDisplay();
         });
-
         thicknessRange.addEventListener('input', (e) => {
             state.thickness = parseInt(e.target.value);
             updateDisplay();
         });
-
         gapRange.addEventListener('input', (e) => {
             state.gap = parseInt(e.target.value);
             updateDisplay();
         });
-
         contourRelaxRange.addEventListener('input', (e) => {
             state.contourRelax = parseFloat(e.target.value);
             updateDisplay();
         });
-
-        sharpOutlineCheck.addEventListener('change', (e) => {
-            state.sharp = e.target.checked;
-
-            // Update label styling
-            if (state.sharp) {
-                labelSmooth.classList.remove('active');
-                labelSharp.classList.add('active');
-            } else {
-                labelSmooth.classList.add('active');
-                labelSharp.classList.remove('active');
-            }
-
+        zoomRange.addEventListener('input', (e) => {
+            state.zoom = parseFloat(e.target.value);
+            fitFontSize();
             updateDisplay();
         });
-
+        sharpOutlineCheck.addEventListener('change', (e) => {
+            state.sharp = e.target.checked;
+            labelSmooth.classList.toggle('text-indigo-500', !state.sharp);
+            labelSmooth.classList.toggle('dark:text-indigo-400', !state.sharp);
+            labelSmooth.classList.toggle('text-slate-400', state.sharp);
+            labelSharp.classList.toggle('text-indigo-500', state.sharp);
+            labelSharp.classList.toggle('dark:text-indigo-400', state.sharp);
+            labelSharp.classList.toggle('text-slate-400', !state.sharp);
+            updateDisplay();
+        });
         fontFamilySelect.addEventListener('change', (e) => {
             state.font = e.target.value;
             updateWeightOptions();
+            fitFontSize();
             updateDisplay();
         });
-
         fontWeightSelect.addEventListener('change', (e) => {
             state.weight = parseInt(e.target.value);
+            fitFontSize();
             updateDisplay();
         });
-
         lineHeightRange.addEventListener('input', (e) => {
             state.lineHeight = parseFloat(e.target.value);
             updateDisplay();
         });
-
         showTextCheck.addEventListener('change', (e) => {
             state.showText = e.target.checked;
             updateDisplay();
         });
 
-        // Initialize state
-        updateWeightOptions(); // Populates weights and sets state.weight
+        transparentBgCheck.addEventListener('change', () => {
+            document.getElementById('export-btn-label').textContent =
+                transparentBgCheck.checked ? 'Download PNG · Transparent' : 'Download PNG';
+        });
+
+        const displayArea = document.getElementById('display-area');
+        function fitFontSize() {
+            const style = window.getComputedStyle(displayArea);
+            const padH = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+            const padV = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+            const areaW = (displayArea.clientWidth - padH) * 0.95;
+            const areaH = (displayArea.clientHeight - padV) * 0.95;
+            if (areaW <= 0 || areaH <= 0) return;
+            let lo = 12, hi = 500, best = lo, safety = 0;
+            // 1) Find the maximum font size that fits the container *without* zoom
+            while (lo <= hi && safety++ < 100) {
+                const mid = Math.floor((lo + hi) / 2);
+                display.style.fontSize = mid + 'px';
+                if (display.scrollWidth <= Math.ceil(areaW) && display.scrollHeight <= Math.ceil(areaH)) {
+                    best = mid; lo = mid + 1;
+                } else { hi = mid - 1; }
+            }
+            // 2) Apply the user's zoom factor
+            // We use the fitted size as the "100%" base
+            const finalSize = Math.max(12, Math.floor(best * state.zoom));
+            display.style.fontSize = finalSize + 'px';
+        }
+        const resizeObserver = new ResizeObserver(() => { fitFontSize(); updateDisplay(); });
+        resizeObserver.observe(displayArea);
+
+        // ── Interaction: Zoom (Scroll Wheel) ──────────────────────────────────
+        displayArea.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const delta = -e.deltaY * 0.001;
+            const newZoom = Math.min(Math.max(state.zoom + delta, 0.2), 2.0);
+            if (Math.abs(newZoom - state.zoom) > 0.001) {
+                state.zoom = newZoom;
+                zoomRange.value = state.zoom;
+                zoomVal.textContent = Math.round(state.zoom * 100) + '%';
+                fitFontSize();
+                updateDisplay();
+            }
+        }, { passive: false });
+
+        // ── Drag Logic (Mouse & Touch) ─────────────────────────────────────────
+        let isDragging = false;
+        let startX = 0, startY = 0;
+        let initialX = 0, initialY = 0;
+        let initialPinchDist = 0;
+        let initialZoom = 1.0;
+
+        function handleDragStart(x, y) {
+            isDragging = true;
+            startX = x;
+            startY = y;
+            initialX = state.x;
+            initialY = state.y;
+            displayArea.style.cursor = 'grabbing';
+        }
+
+        function handleDragMove(x, y) {
+            if (!isDragging) return;
+            const dx = x - startX;
+            const dy = y - startY;
+            state.x = initialX + dx;
+            state.y = initialY + dy;
+            updateDisplay(); // Efficient enough?
+        }
+
+        function handleDragEnd() {
+            isDragging = false;
+            displayArea.style.cursor = '';
+        }
+
+        displayArea.addEventListener('mousedown', (e) => {
+            if (e.target.closest('#controls-drawer')) return;
+            handleDragStart(e.clientX, e.clientY);
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            handleDragMove(e.clientX, e.clientY);
+        });
+
+        window.addEventListener('mouseup', handleDragEnd);
+
+        // Touch logic for drag (single touch) vs pinch (double touch)
+        displayArea.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 1) {
+                // Drag
+                handleDragStart(e.touches[0].clientX, e.touches[0].clientY);
+            } else if (e.touches.length === 2) {
+                // Pinch start
+                isDragging = false; // Cancel drag if pinch starts
+                e.preventDefault();
+                initialPinchDist = getDist(e.touches);
+                initialZoom = state.zoom;
+            }
+        }, { passive: false });
+
+        displayArea.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 1 && isDragging) {
+                e.preventDefault(); // Prevent scrolling while dragging
+                handleDragMove(e.touches[0].clientX, e.touches[0].clientY);
+            } else if (e.touches.length === 2) {
+                e.preventDefault();
+                const dist = getDist(e.touches);
+                const scale = dist / initialPinchDist;
+                const newZoom = Math.min(Math.max(initialZoom * scale, 0.2), 2.0);
+                // Also update range
+                state.zoom = newZoom;
+                zoomRange.value = state.zoom;
+                zoomVal.textContent = Math.round(state.zoom * 100) + '%';
+                fitFontSize();
+                updateDisplay();
+            }
+        }, { passive: false });
+
+        displayArea.addEventListener('touchend', (e) => {
+            if (e.touches.length === 0) handleDragEnd();
+        });
+
+        function getDist(touches) {
+            return Math.hypot(
+                touches[0].pageX - touches[1].pageX,
+                touches[0].pageY - touches[1].pageY
+            );
+        }
+
+        // ── Initialise ─────────────────────────────────────────────────────────
+        updateWeightOptions();
         updateThemeIcon();
+        fitFontSize();
         updateDisplay();
 
-        // PWA Service Worker Registration and Update Management
+        // ── PWA Service Worker ─────────────────────────────────────────────────
         let newWorker;
-
-        function showUpdateBanner() {
-            document.getElementById('update-banner').classList.add('show');
-        }
-
-        function updateApp() {
-            if (newWorker) {
-                newWorker.postMessage({ action: 'skipWaiting' });
-            }
-        }
+        function showUpdateBanner() { document.getElementById('update-banner').classList.add('show'); }
+        function updateApp() { if (newWorker) newWorker.postMessage({ action: 'skipWaiting' }); }
 
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/service-worker.js')
-                .then(reg => {
-                    reg.addEventListener('updatefound', () => {
-                        newWorker = reg.installing;
-                        newWorker.addEventListener('statechange', () => {
-                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                // New service worker available
-                                showUpdateBanner();
-                            }
+            if (!['file:', 'data:'].includes(window.location.protocol)) {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then(reg => {
+                        reg.addEventListener('updatefound', () => {
+                            newWorker = reg.installing;
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) showUpdateBanner();
+                            });
                         });
-                    });
-                })
-                .catch(err => console.log('Service worker registration failed:', err));
-
-            // Reload page when new service worker takes control
-            navigator.serviceWorker.addEventListener('controllerchange', () => {
-                window.location.reload();
-            });
+                    })
+                    .catch(err => console.log('SW failed:', err));
+                navigator.serviceWorker.addEventListener('controllerchange', () => window.location.reload());
+            }
         }
-
     </script>
 </body>
 

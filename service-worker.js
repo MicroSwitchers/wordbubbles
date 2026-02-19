@@ -59,7 +59,14 @@ self.addEventListener('fetch', event => {
 
             return response;
           }
-        );
+        ).catch(() => {
+          // Fallback for network failure (e.g. offline)
+          // Could return a custom offline page here if we had one
+          return new Response('Network error occurred', {
+            status: 408,
+            headers: { 'Content-Type': 'text/plain' }
+          });
+        });
       })
   );
 });
