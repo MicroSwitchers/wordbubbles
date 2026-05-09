@@ -3257,12 +3257,20 @@
             });
         })();
 
+        // Initial render
+        renderAllItems();
+        fitCanvasToView();
+        
         // Re-render once fonts have loaded to ensure the word is correctly centered
-        document.fonts.ready.then(() => {
-            renderAllItems();
-            fitCanvasToView();
+        if (document.fonts && document.fonts.ready) {
+            document.fonts.ready.then(() => {
+                renderAllItems();
+                fitCanvasToView();
+                if (state.canvasMode === 'single') scheduleAutoFit();
+            });
+        } else {
             if (state.canvasMode === 'single') scheduleAutoFit();
-        });
+        }
 
         // Resize observer
         let resizeFrame = null;
