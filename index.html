@@ -1708,105 +1708,100 @@
         // ══════════════════════════════════════════════════════════════════════════
         // SVG FILTER PIPELINE (preserved, contourRelax passed as parameter)
         // ══════════════════════════════════════════════════════════════════════════
-        const REFERENCE_FONT_SIZE = 96;
-
-        function scaleRadius(sliderValue, currentFontSize) {
-            const scale = (parseFloat(currentFontSize) || REFERENCE_FONT_SIZE) / REFERENCE_FONT_SIZE;
-            return Math.max(sliderValue * scale, 0.5);
-        }
-
-        function getHolePatchStr(fontSize, maskSpread) {
+        // OPTIMIZED SVG FILTER GENERATION
+        // ══════════════════════════════════════════════════════════════════════════
+        function generateOptimizedSVGFilter(filterId, item, fontSize, gap, totalRadius, colorRgb, bgColor, isTransparent, sourceGraphicMerge = '') {
             const fsv = parseFloat(fontSize) || 100;
-            // Crisp binary source (removes AA fringe before morphology operations)
-            // Counter-fill source: closing radius of 22% of font size fills enclosed holes
-            // like O, D, B, P counters without bridging the gaps between adjacent letters.
             const fillRadius = Math.max(fsv * 0.22, 4).toFixed(1);
-            return `
+            
+            // 1) Crisp binary source + hole filling
+            let str = `<filter id="${filterId}" x="-50%" y="-50%" width="200%" height="200%" color-interpolation-filters="sRGB">
                 <feComponentTransfer in="SourceAlpha" result="CrispSource">
                     <feFuncA type="linear" slope="255" intercept="-127.5" />
                 </feComponentTransfer>
                 <feMorphology operator="dilate" radius="${fillRadius}" in="CrispSource" result="cf_d"/>
                 <feMorphology operator="erode"  radius="${fillRadius}" in="cf_d" result="cf_e"/>
                 <feComposite operator="over" in="CrispSource" in2="cf_e" result="CounterFilledSource"/>
-                <feComposite operator="out" in="CounterFilledSource" in2="CrispSource" result="CounterHoles"/>
-            `;
-        }
+                <feComposite operator="out" in="CounterFilledSource" in2="CrispSource" result="CounterHoles"/>`;
 
-        // buildExpandedShape: inspired by the original Roman Word Bubbling approach.
-        // Pre-shapes the source alpha with a morphological closing (dilate → erode at
-        // contourRadius) before the main expansion dilate.  The closing merges letters
-        // within a word into a smooth word-blob while keeping separate lines apart,
-        // giving clean per-line / per-word contours.  A small blur+threshold after the
-        // closing sharpens the merged shape before final expansion.
-        function buildExpandedShape(radius, contourRadius, sharp, prefix, sourceNode = 'CrispSource') {
-            if (contourRadius > 0.5) {
-                const cr  = contourRadius.toFixed(2);
-                const cBlur = Math.max(contourRadius / 4, 0.6).toFixed(2);
-                if (sharp) {
-                    return {
-                        xml: `
-                            <feMorphology operator="dilate" radius="${cr}" in="${sourceNode}" result="${prefix}_cr1"/>
-                            <feMorphology operator="erode"  radius="${cr}" in="${prefix}_cr1" result="${prefix}_cr2"/>
-                            <feComposite operator="over" in="${sourceNode}" in2="${prefix}_cr2" result="${prefix}_combined"/>
-                            <feMorphology operator="dilate" radius="${radius}" in="${prefix}_combined" result="${prefix}_exp"/>
-                        `,
-                        result: `${prefix}_exp`
-                    };
+            const sharp = item.sharp;
+            const cr = typeof item.contourRelax === 'number' ? item.contourRelax : 0.12;
+            const contourRadii = (fsv * cr).toFixed(2);
+            
+            // 2) Optional global smoothing base (calculates morphological closing ONCE)
+            if (contourRadii > 0.5) {
+                const cBlur = Math.max(contourRadii / 4, 0.6).toFixed(2);
+                str += `
+                <feMorphology operator="dilate" radius="${contourRadii}" in="CounterFilledSource" result="sm_d"/>
+                <feMorphology operator="erode"  radius="${contourRadii}" in="sm_d" result="sm_e"/>`;
+                
+                if (!sharp) {
+                    str += `
+                <feGaussianBlur stdDeviation="${cBlur}" in="sm_e" result="sm_b"/>
+                <feComponentTransfer in="sm_b" result="sm_t">
+                    <feFuncA type="linear" slope="30" intercept="-14"/>
+                </feComponentTransfer>
+                <feComposite operator="over" in="CounterFilledSource" in2="sm_t" result="SmoothBase"/>`;
                 } else {
-                    return {
-                        xml: `
-                            <feMorphology operator="dilate" radius="${cr}" in="${sourceNode}" result="${prefix}_cr1"/>
-                            <feMorphology operator="erode"  radius="${cr}" in="${prefix}_cr1" result="${prefix}_cr2"/>
-                            <feGaussianBlur stdDeviation="${cBlur}" in="${prefix}_cr2" result="${prefix}_crBlur"/>
-                            <feComponentTransfer in="${prefix}_crBlur" result="${prefix}_crRelaxed">
-                                <feFuncA type="linear" slope="30" intercept="-14"/>
-                            </feComponentTransfer>
-                            <feComposite operator="over" in="${sourceNode}" in2="${prefix}_crRelaxed" result="${prefix}_combined"/>
-                            <feMorphology operator="dilate" radius="${radius}" in="${prefix}_combined" result="${prefix}_exp"/>
-                        `,
-                        result: `${prefix}_exp`
-                    };
+                    str += `<feComposite operator="over" in="CounterFilledSource" in2="sm_e" result="SmoothBase"/>`;
                 }
             } else {
-                return {
-                    xml: `<feMorphology operator="dilate" radius="${radius}" in="${sourceNode}" result="${prefix}_exp"/>`,
-                    result: `${prefix}_exp`
-                };
+                str += `<feComponentTransfer in="CounterFilledSource" result="SmoothBase"><feFuncA type="identity"/></feComponentTransfer>`;
             }
-        }
 
-        function getFilterContent(radius, color, _unused, sharp, fontSize, prefix, suffix, contourRelax, sourceNode = 'CrispSource') {
-            const aaBlur = Math.max(radius * 0.12, 0.4);
-            const AA_SLOPE = 8;
-            const AA_OFFSET = -3.5;
-            const cr = typeof contourRelax === 'number' ? contourRelax : 0.12;
-            const fsv = parseFloat(fontSize) || REFERENCE_FONT_SIZE;
-            const contourRadius = fsv * cr;
-            const { xml: shapeXml, result: expandedNode } = buildExpandedShape(radius, contourRadius, sharp, prefix, sourceNode);
-            const resultAttr = suffix ? ` result="${suffix}"` : '';
-            if (sharp) {
-                return `${shapeXml}<feFlood flood-color="${color}" result="${prefix}_col" /><feComposite operator="in" in="${prefix}_col" in2="${expandedNode}"${resultAttr} />`;
-            } else {
-                return `${shapeXml}<feGaussianBlur stdDeviation="${aaBlur}" in="${expandedNode}" result="${prefix}_aa" /><feComponentTransfer in="${prefix}_aa" result="${prefix}_shaped"><feFuncA type="linear" slope="${AA_SLOPE}" intercept="${AA_OFFSET}" /></feComponentTransfer><feFlood flood-color="${color}" result="${prefix}_col" /><feComposite operator="in" in="${prefix}_col" in2="${prefix}_shaped"${resultAttr} />`;
-            }
-        }
+            // 3) Expand for gap (used by Mask & Ring Inner) and total (Ring Outer)
+            // By extracting SmoothBase, we avoid duplicating the expensive cr operations above
+            str += `
+                <feMorphology operator="dilate" radius="${gap}" in="SmoothBase" result="gap_exp"/>
+                <feMorphology operator="dilate" radius="${totalRadius}" in="SmoothBase" result="total_exp"/>`;
 
-        function getRingFilterContent(gapRadius, totalRadius, outlineColor, sharp, fontSize, suffix, contourRelax) {
-            const AA_SLOPE = 8;
-            const AA_OFFSET = -3.5;
-            const cr = typeof contourRelax === 'number' ? contourRelax : 0.12;
-            const fsv = parseFloat(fontSize) || REFERENCE_FONT_SIZE;
-            const contourRadius = fsv * cr;
-            const { xml: innerXml, result: innerNode } = buildExpandedShape(gapRadius, contourRadius, sharp, 'rf_i', 'CounterFilledSource');
-            const { xml: outerXml, result: outerNode } = buildExpandedShape(totalRadius, contourRadius, sharp, 'rf_o', 'CounterFilledSource');
-            const resultAttr = suffix ? ` result="${suffix}"` : '';
-            if (sharp) {
-                return `${innerXml}${outerXml}<feComposite operator="out" in="${outerNode}" in2="${innerNode}" result="ring" /><feFlood flood-color="${outlineColor}" result="rf_col" /><feComposite operator="in" in="rf_col" in2="ring"${resultAttr} />`;
+            // 4) Optional anti-aliasing
+            if (!sharp) {
+                const innerAA = Math.max(gap * 0.12, 0.4).toFixed(2);
+                const outerAA = Math.max(totalRadius * 0.12, 0.4).toFixed(2);
+                const AA_SLOPE = 8;
+                const AA_OFFSET = -3.5;
+                str += `
+                <feGaussianBlur stdDeviation="${innerAA}" in="gap_exp" result="gap_aa"/>
+                <feComponentTransfer in="gap_aa" result="gap_shaped">
+                    <feFuncA type="linear" slope="${AA_SLOPE}" intercept="${AA_OFFSET}" />
+                </feComponentTransfer>
+                <feGaussianBlur stdDeviation="${outerAA}" in="total_exp" result="total_aa"/>
+                <feComponentTransfer in="total_aa" result="total_shaped">
+                    <feFuncA type="linear" slope="${AA_SLOPE}" intercept="${AA_OFFSET}" />
+                </feComponentTransfer>`;
             } else {
-                const outerAA = Math.max(totalRadius * 0.12, 0.4);
-                const innerAA = Math.max(gapRadius * 0.12, 0.4);
-                return `${innerXml}${outerXml}<feGaussianBlur stdDeviation="${outerAA}" in="${outerNode}" result="rf_o_aa" /><feComponentTransfer in="rf_o_aa" result="rf_o_shaped"><feFuncA type="linear" slope="${AA_SLOPE}" intercept="${AA_OFFSET}" /></feComponentTransfer><feGaussianBlur stdDeviation="${innerAA}" in="${innerNode}" result="rf_i_aa" /><feComponentTransfer in="rf_i_aa" result="rf_i_shaped"><feFuncA type="linear" slope="${AA_SLOPE}" intercept="${AA_OFFSET}" /></feComponentTransfer><feComposite operator="out" in="rf_o_shaped" in2="rf_i_shaped" result="ring" /><feFlood flood-color="${outlineColor}" result="rf_col" /><feComposite operator="in" in="rf_col" in2="ring"${resultAttr} />`;
+                str += `
+                <feComponentTransfer in="gap_exp" result="gap_shaped"><feFuncA type="identity"/></feComponentTransfer>
+                <feComponentTransfer in="total_exp" result="total_shaped"><feFuncA type="identity"/></feComponentTransfer>`;
             }
+
+            // 5) Render layers
+            str += `
+                <feComposite operator="out" in="total_shaped" in2="gap_shaped" result="ring_alpha"/>
+                <feFlood flood-color="${colorRgb}" result="ring_color"/>
+                <feComposite operator="in" in="ring_color" in2="ring_alpha" result="final_outline"/>`;
+
+            if (!isTransparent) {
+                str += `
+                <feFlood flood-color="${bgColor}" result="mask_color"/>
+                <feComposite operator="in" in="mask_color" in2="gap_shaped" result="mask_solid"/>
+                <feComposite operator="out" in="mask_solid" in2="CounterHoles" result="final_mask_cut"/>
+                <feMerge>
+                    <feMergeNode in="final_mask_cut"/>
+                    <feMergeNode in="final_outline"/>
+                    ${sourceGraphicMerge}
+                </feMerge>`;
+            } else {
+                str += `
+                <feMerge>
+                    <feMergeNode in="final_outline"/>
+                    ${sourceGraphicMerge}
+                </feMerge>`;
+            }
+
+            str += `\n            </filter>`;
+            return str;
         }
 
         // ══════════════════════════════════════════════════════════════════════════
@@ -2191,24 +2186,10 @@
             const isDark = htmlEl.classList.contains('dark');
             const bgColor = isDark ? '#000000' : '#ffffff';
 
-            const holePatchStr = getHolePatchStr(fs, item.maskSpread);
-            const outlineFilter = getRingFilterContent(gap, totalRadius, colorRgb, item.sharp, fs, 'final_outline', item.contourRelax);
-            const maskFilter = getFilterContent(gap, bgColor, false, item.sharp, fs, 'gfmask', 'final_mask', item.contourRelax, 'CounterFilledSource');
-            const maskPunchOut = `<feComposite operator="out" in="final_mask" in2="CounterHoles" result="final_mask_cut"/>`;
-
             const filterId = `f-item-${item.id}`;
             const svgFilters = `<svg id="live-filter-${item.id}" xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute;width:0;height:0;overflow:hidden;pointer-events:none;">
                 <defs>
-                    <filter id="${filterId}" x="-50%" y="-50%" width="200%" height="200%" color-interpolation-filters="sRGB">
-                        ${holePatchStr}
-                        ${outlineFilter}
-                        ${maskFilter}
-                        ${maskPunchOut}
-                        <feMerge>
-                            <feMergeNode in="final_mask_cut" />
-                            <feMergeNode in="final_outline" />
-                        </feMerge>
-                    </filter>
+                    ${generateOptimizedSVGFilter(filterId, item, fs, gap, totalRadius, colorRgb, bgColor, false, '')}
                 </defs>
             </svg>`;
 
@@ -2842,27 +2823,8 @@
             const totalRadius = gap + thick;
             const colorRgb = hexToRgb(item.color);
 
-            const holePatchStr = getHolePatchStr(fsStr, item.maskSpread);
-            const outlineFilter = getRingFilterContent(gap, totalRadius, colorRgb, item.sharp, fsStr, 'final_outline', item.contourRelax);
-            const maskFilter = getFilterContent(gap, bgColor, false, item.sharp, fsStr, 'gfmask', 'final_mask', item.contourRelax, 'CounterFilledSource');
-            const maskPunchOut = `<feComposite operator="out" in="final_mask" in2="CounterHoles" result="final_mask_cut"/>`;
-
             const sourceGraphicMerge = item.showText ? '<feMergeNode in="SourceGraphic"/>' : '';
-            let exportFilterDefs;
-
-            if (isTransparent) {
-                // Transparent export: only the colored ring is opaque; gap zone is transparent.
-                // Mask is omitted so no bgColor bleeds into the gap, regardless of dark/light mode.
-                exportFilterDefs = `<filter id="f-export" x="-50%" y="-50%" width="200%" height="200%" color-interpolation-filters="sRGB">
-                    ${holePatchStr}${outlineFilter}
-                    <feMerge><feMergeNode in="final_outline"/>${sourceGraphicMerge}</feMerge>
-                </filter>`;
-            } else {
-                exportFilterDefs = `<filter id="f-export" x="-50%" y="-50%" width="200%" height="200%" color-interpolation-filters="sRGB">
-                    ${holePatchStr}${outlineFilter}${maskFilter}${maskPunchOut}
-                    <feMerge><feMergeNode in="final_mask_cut"/><feMergeNode in="final_outline"/>${sourceGraphicMerge}</feMerge>
-                </filter>`;
-            }
+            const exportFilterDefs = generateOptimizedSVGFilter('f-export', item, fsStr, gap, totalRadius, colorRgb, bgColor, isTransparent, sourceGraphicMerge);
 
             const fontDataUrl = await getEmbeddedFont(item.font, item.weight);
             const fontFaceCSS = fontDataUrl
