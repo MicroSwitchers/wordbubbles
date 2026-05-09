@@ -770,7 +770,7 @@
 </head>
 
 <body
-    class="h-[100dvh] w-screen overflow-hidden bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors duration-300">
+    class="h-screen h-[100dvh] w-screen overflow-hidden bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors duration-300">
 
     <!-- SPLASH SCREEN -->
     <div id="splash-screen"
@@ -2199,7 +2199,7 @@
             const filterId = `f-item-${item.id}`;
             const svgFilters = `<svg id="live-filter-${item.id}" xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute;width:0;height:0;overflow:hidden;pointer-events:none;">
                 <defs>
-                    <filter id="${filterId}" x="-200%" y="-200%" width="500%" height="500%" color-interpolation-filters="sRGB">
+                    <filter id="${filterId}" x="-50%" y="-50%" width="200%" height="200%" color-interpolation-filters="sRGB">
                         ${holePatchStr}
                         ${outlineFilter}
                         ${maskFilter}
@@ -2853,12 +2853,12 @@
             if (isTransparent) {
                 // Transparent export: only the colored ring is opaque; gap zone is transparent.
                 // Mask is omitted so no bgColor bleeds into the gap, regardless of dark/light mode.
-                exportFilterDefs = `<filter id="f-export" x="-200%" y="-200%" width="500%" height="500%" color-interpolation-filters="sRGB">
+                exportFilterDefs = `<filter id="f-export" x="-50%" y="-50%" width="200%" height="200%" color-interpolation-filters="sRGB">
                     ${holePatchStr}${outlineFilter}
                     <feMerge><feMergeNode in="final_outline"/>${sourceGraphicMerge}</feMerge>
                 </filter>`;
             } else {
-                exportFilterDefs = `<filter id="f-export" x="-200%" y="-200%" width="500%" height="500%" color-interpolation-filters="sRGB">
+                exportFilterDefs = `<filter id="f-export" x="-50%" y="-50%" width="200%" height="200%" color-interpolation-filters="sRGB">
                     ${holePatchStr}${outlineFilter}${maskFilter}${maskPunchOut}
                     <feMerge><feMergeNode in="final_mask_cut"/><feMergeNode in="final_outline"/>${sourceGraphicMerge}</feMerge>
                 </filter>`;
@@ -3274,14 +3274,18 @@
 
         // Resize observer
         let resizeFrame = null;
-        const resizeObserver = new ResizeObserver(() => {
-            if (resizeFrame) cancelAnimationFrame(resizeFrame);
-            resizeFrame = requestAnimationFrame(() => {
-                keepViewportCenterDuringLayoutChange();
-                resizeFrame = null;
+        if (typeof ResizeObserver !== 'undefined') {
+            const resizeObserver = new ResizeObserver(() => {
+                if (resizeFrame) cancelAnimationFrame(resizeFrame);
+                resizeFrame = requestAnimationFrame(() => {
+                    keepViewportCenterDuringLayoutChange();
+                    resizeFrame = null;
+                });
             });
-        });
-        resizeObserver.observe(displayArea);
+            resizeObserver.observe(displayArea);
+        } else {
+            window.addEventListener('resize', keepViewportCenterDuringLayoutChange);
+        }
 
         // Splash screen
         function dismissSplash() {
