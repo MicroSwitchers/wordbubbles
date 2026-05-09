@@ -2,21 +2,15 @@
   "name": "Word Bubbling - Dr. Roman-Lantzy Method",
   "short_name": "Word Bubbling",
   "description": "Word Bubbling tool using the Dr. Roman-Lantzy Method for visual learning",
-  "start_url": "/index.html",
+  "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#020617",
   "theme_color": "#6366f1",
   "orientation": "any",
   "icons": [
     {
-      "src": "icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "icon-512.png",
-      "sizes": "512x512",
+      "src": "icon.png",
+      "sizes": "any",
       "type": "image/png",
       "purpose": "any maskable"
     }

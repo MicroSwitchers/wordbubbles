@@ -1,9 +1,8 @@
 const CACHE_NAME = 'word-bubbling-v1.0.0';
 const urlsToCache = [
-  '/index.html',
-  '/manifest.json',
-  'https://cdn.tailwindcss.com',
-  'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800;900&display=swap'
+  './index.html',
+  './manifest.json',
+  './icon.png'
 ];
 
 // Install event - cache resources
