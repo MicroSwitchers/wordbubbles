@@ -2201,9 +2201,7 @@
             const maskFilter = getFilterContent(gap, bgColor, false, item.sharp, fs, 'gfmask', 'final_mask', item.contourRelax);
 
             const filterId = `f-item-${item.id}`;
-            const svgFilters = `<svg id="live-filter-${item.id}" xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0;overflow:visible;pointer-events:none;">
-                <defs>
-                    <filter id="${filterId}" x="-200%" y="-200%" width="500%" height="500%" color-interpolation-filters="sRGB">
+            const filterContent = `<filter id="${filterId}" x="-200%" y="-200%" width="500%" height="500%" color-interpolation-filters="sRGB">
                         ${holePatchStr}
                         ${outlineFilter}
                         ${maskFilter}
@@ -2211,22 +2209,29 @@
                             <feMergeNode in="final_outline" />
                             <feMergeNode in="final_mask" />
                         </feMerge>
-                    </filter>
-                </defs>
-            </svg>`;
+                    </filter>`;
 
-            const existing = document.getElementById(`live-filter-${item.id}`);
-            if (existing) existing.remove();
+            // Update the existing <svg> <defs> in-place instead of removing and
+            // re-inserting the whole <svg> via insertAdjacentHTML. This avoids
+            // HTML string parsing + DOM insertion on every slider input event,
+            // which is the main source of lag on mobile CPUs.
+            let svgEl = document.getElementById(`live-filter-${item.id}`);
+            if (!svgEl) {
+                svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                svgEl.id = `live-filter-${item.id}`;
+                svgEl.setAttribute('style', 'position:absolute;width:0;height:0;overflow:visible;pointer-events:none;');
+                svgEl.appendChild(document.createElementNS('http://www.w3.org/2000/svg', 'defs'));
+                document.body.appendChild(svgEl);
+            }
+            svgEl.querySelector('defs').innerHTML = filterContent;
 
-            document.body.insertAdjacentHTML('beforeend', svgFilters);
-
-            const bgEl = document.querySelector(`.word-item[data-item-id="${item.id}"] .word-bg`);
+            const itemEl = document.querySelector(`.word-item[data-item-id="${item.id}"]`);
+            const bgEl = itemEl ? itemEl.querySelector('.word-bg') : null;
             if (bgEl) {
                 const filterRef = `url(#${filterId})`;
                 bgEl.style.webkitFilter = filterRef;
                 bgEl.style.filter = filterRef;
             }
-            const itemEl = document.querySelector(`.word-item[data-item-id="${item.id}"]`);
             if (itemEl) {
                 itemEl.style.setProperty('--bubble-radius', totalRadius + 'px');
             }
@@ -2391,11 +2396,34 @@
             startItemX: 0, startItemY: 0,
             startPanX: 0, startPanY: 0,
             targetItemId: null,
-            currentStroke: null
+            currentStroke: null,
+            cachedW: 0, cachedH: 0  // element size cached at drag-start; avoids layout reads in move loop
         };
         const activePointers = new Map();
         let pinchState = null;
         let activeInlineEditor = null;
+
+        // ─── RAF-throttled filter scheduler ──────────────────────────────────────
+        // Sliders fire 'input' at up to 120 Hz. updateItemFilter rebuilds SVG
+        // filters on every call — expensive on mobile. Batch to one call per frame.
+        let _filterRafId = null;
+        const _filterDirtySet = new Set();
+        function scheduleFilterUpdate(item) {
+            _filterDirtySet.add(item.id);
+            if (_filterRafId !== null) return;
+            _filterRafId = requestAnimationFrame(() => {
+                _filterRafId = null;
+                _filterDirtySet.forEach(id => {
+                    const it = state.items.find(i => i.id === id);
+                    if (it) updateItemFilter(it);
+                });
+                _filterDirtySet.clear();
+            });
+        }
+
+        // ─── RAF-throttled pointer move (drag / pan only) ────────────────────────
+        let _moveRafPending = false;
+        let _lastMoveClientX = 0, _lastMoveClientY = 0;
 
         function hitTestItems(clientX, clientY) {
             const items = [...state.items].reverse();
@@ -2437,7 +2465,14 @@
                         };
                         item.strokes.push(stroke);
                         interaction.currentStroke = stroke;
-                        redrawEraserCanvas(item);
+                        // Draw initial tap point incrementally — no full canvas redraw
+                        const _ctx0 = eraserCanvas.getContext('2d');
+                        const _bg0 = htmlEl.classList.contains('dark') ? '#000000' : '#ffffff';
+                        const _lw0 = stroke.normSize * norm;
+                        _ctx0.fillStyle = _bg0;
+                        _ctx0.beginPath();
+                        _ctx0.arc(2000 + stroke.points[0].x * norm, 2000 + stroke.points[0].y * norm, _lw0 / 2, 0, Math.PI * 2);
+                        _ctx0.fill();
                     }
                 }
                 // Whether or not we started a stroke, don't fall through to drag/pan
@@ -2473,6 +2508,11 @@
                     interaction.startItemX = hitItem.x;
                     interaction.startItemY = hitItem.y;
                     displayArea.style.cursor = 'grabbing';
+                    // Read element size once here so pointermove never forces a layout
+                    const _de = document.querySelector(`.word-item[data-item-id="${hitItem.id}"]`);
+                    const _db = _de ? _de.querySelector('.word-bg') : null;
+                    interaction.cachedW = _db ? _db.offsetWidth : 0;
+                    interaction.cachedH = _db ? _db.offsetHeight : 0;
                 }
             } else {
                 selectItem(null);
@@ -2496,11 +2536,8 @@
                 clampItemPosition(item);
                 const el = document.querySelector(`.word-item[data-item-id="${item.id}"]`);
                 if (el) {
-                    const bg = el.querySelector('.word-bg');
-                    const w = bg ? bg.offsetWidth : 0;
-                    const h = bg ? bg.offsetHeight : 0;
-                    el.style.left = (item.x - w / 2) + 'px';
-                    el.style.top = (item.y - h / 2) + 'px';
+                    el.style.left = (item.x - interaction.cachedW / 2) + 'px';
+                    el.style.top  = (item.y - interaction.cachedH / 2) + 'px';
                 }
             } else if (interaction.type === 'pan-canvas') {
                 const dx = clientX - interaction.startClientX;
@@ -2516,8 +2553,22 @@
                 if (canvas) {
                     const coords = getEraserCoords(clientX, clientY, canvas);
                     const norm = item.fontSize > 0 ? item.fontSize : 1;
-                    interaction.currentStroke.points.push({ x: coords.x / norm, y: coords.y / norm });
-                    redrawEraserCanvas(item);
+                    const stroke = interaction.currentStroke;
+                    const prevPt = stroke.points[stroke.points.length - 1];
+                    const newPt = { x: coords.x / norm, y: coords.y / norm };
+                    stroke.points.push(newPt);
+                    // Draw only the new segment — avoids replaying all strokes on every move
+                    const _ctx = canvas.getContext('2d');
+                    const _bgc = htmlEl.classList.contains('dark') ? '#000000' : '#ffffff';
+                    const _lw = stroke.normSize * norm;
+                    _ctx.lineCap = 'round';
+                    _ctx.lineJoin = 'round';
+                    _ctx.strokeStyle = _bgc;
+                    _ctx.lineWidth = _lw;
+                    _ctx.beginPath();
+                    _ctx.moveTo(2000 + prevPt.x * norm, 2000 + prevPt.y * norm);
+                    _ctx.lineTo(2000 + newPt.x * norm, 2000 + newPt.y * norm);
+                    _ctx.stroke();
                 }
             }
         }
@@ -2708,8 +2759,21 @@
             activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
             if (activePointers.size >= 2) {
                 updatePinchZoom();
-            } else {
+                return;
+            }
+            // Erase moves run immediately so every stroke point is captured accurately.
+            // Drag / pan moves are batched to one DOM update per animation frame.
+            if (interaction.type === 'erase') {
                 handlePointerMove(e.clientX, e.clientY);
+            } else {
+                _lastMoveClientX = e.clientX;
+                _lastMoveClientY = e.clientY;
+                if (_moveRafPending) return;
+                _moveRafPending = true;
+                requestAnimationFrame(() => {
+                    _moveRafPending = false;
+                    handlePointerMove(_lastMoveClientX, _lastMoveClientY);
+                });
             }
         });
 
@@ -3007,7 +3071,7 @@
             fontSizeVal.textContent = item.fontSize + 'px';
             updateRangeFill(fontSizeRange);
             renderItem(item);
-            updateItemFilter(item);
+            scheduleFilterUpdate(item);
         });
 
         thicknessRange.addEventListener('input', () => {
@@ -3016,7 +3080,7 @@
             item.thickness = +thicknessRange.value;
             thicknessVal.textContent = item.thickness + 'px';
             updateRangeFill(thicknessRange);
-            updateItemFilter(item);
+            scheduleFilterUpdate(item);
         });
 
         gapRange.addEventListener('input', () => {
@@ -3025,7 +3089,7 @@
             item.gap = +gapRange.value;
             gapVal.textContent = item.gap + 'px';
             updateRangeFill(gapRange);
-            updateItemFilter(item);
+            scheduleFilterUpdate(item);
         });
 
         fontFamilySelect.addEventListener('change', () => {
@@ -3056,7 +3120,7 @@
             lineHeightVal.textContent = item.lineHeight.toFixed(1);
             updateRangeFill(lineHeightRange);
             renderItem(item);
-            updateItemFilter(item);
+            scheduleFilterUpdate(item);
         });
 
         showTextCheck.addEventListener('change', () => {
@@ -3073,7 +3137,7 @@
             item.contourRelax = +contourRelaxRange.value;
             contourRelaxVal.textContent = item.contourRelax.toFixed(2);
             updateRangeFill(contourRelaxRange);
-            updateItemFilter(item);
+            scheduleFilterUpdate(item);
         });
 
         maskSpreadRange.addEventListener('input', () => {
@@ -3082,7 +3146,7 @@
             item.maskSpread = +maskSpreadRange.value;
             maskSpreadVal.textContent = item.maskSpread.toFixed(2);
             updateRangeFill(maskSpreadRange);
-            updateItemFilter(item);
+            scheduleFilterUpdate(item);
         });
 
         // Canvas controls
