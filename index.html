@@ -1606,6 +1606,12 @@
         const noSelectionMsg = document.getElementById('no-selection-msg');
         const deleteWordBtn = document.getElementById('delete-word-btn');
 
+        // Per-item DOM element cache — eliminates attribute-selector querySelector on every
+        // pointer event, filter update, and render call (biggest hot-path cost on mobile).
+        const _itemElCache    = new Map(); // itemId → { el, bg, fg, composite, eraserCanvas }
+        const _filterSvgCache = new Map(); // itemId → { svgEl, svgDefs }
+        let   _prevSelectedId = null;      // for O(1) selectItem toggle
+
         // ══════════════════════════════════════════════════════════════════════════
         // DRAWER LOGIC
         // ══════════════════════════════════════════════════════════════════════════
@@ -2058,10 +2064,10 @@
             if (state.canvasMode !== 'single') return;
             const item = state.items[0];
             if (!item) return;
-            const el = document.querySelector(`.word-item[data-item-id="${item.id}"]`);
-            if (!el) return;
-            const bg = el.querySelector('.word-bg');
-            if (!bg || !bg.offsetWidth || !bg.offsetHeight) return;
+            const _ac = _itemElCache.get(item.id);
+            if (!_ac) return;
+            const { bg } = _ac;
+            if (!bg.offsetWidth || !bg.offsetHeight) return;
 
             const textW = bg.offsetWidth;
             const textH = bg.offsetHeight;
@@ -2129,15 +2135,22 @@
         }
 
         function renderItem(item) {
-            let el = document.querySelector(`.word-item[data-item-id="${item.id}"]`);
-            if (!el) {
-                el = createItemElement(item);
+            let cached = _itemElCache.get(item.id);
+            // If the cached element was removed from the DOM (e.g. by undo), rebuild it.
+            if (cached && !cached.el.isConnected) { _itemElCache.delete(item.id); cached = null; }
+            if (!cached) {
+                const el = createItemElement(item);
                 canvasArea.appendChild(el);
+                cached = {
+                    el,
+                    bg:           el.querySelector('.word-bg'),
+                    fg:           el.querySelector('.word-fg'),
+                    composite:    el.querySelector('.composite-group'),
+                    eraserCanvas: el.querySelector('.eraser-canvas')
+                };
+                _itemElCache.set(item.id, cached);
             }
-
-            const bg = el.querySelector('.word-bg');
-            const fg = el.querySelector('.word-fg');
-            const composite = el.querySelector('.composite-group');
+            const { el, bg, fg, composite } = cached;
 
             bg.textContent = item.text;
             // DO NOT overwrite the foreground text if the user is actively typing in it!
@@ -2166,7 +2179,7 @@
                 const w = bg.offsetWidth;
                 const h = bg.offsetHeight;
                 el.style.left = (item.x - w / 2) + 'px';
-                el.style.top = (item.y - h / 2) + 'px';
+                el.style.top  = (item.y - h / 2) + 'px';
             });
         }
 
@@ -2176,13 +2189,13 @@
                 updateItemFilter(item);
                 redrawEraserCanvas(item);
             });
-            // Remove orphaned DOM elements
-            document.querySelectorAll('.word-item').forEach(el => {
-                const id = parseInt(el.dataset.itemId);
+            // Remove orphaned cache entries and their DOM elements
+            _itemElCache.forEach((cached, id) => {
                 if (!state.items.find(item => item.id === id)) {
-                    el.remove();
-                    const filterEl = document.getElementById(`live-filter-${id}`);
-                    if (filterEl) filterEl.remove();
+                    cached.el.remove();
+                    _itemElCache.delete(id);
+                    const fc = _filterSvgCache.get(id);
+                    if (fc) { fc.svgEl.remove(); _filterSvgCache.delete(id); }
                 }
             });
         }
@@ -2215,25 +2228,25 @@
             // re-inserting the whole <svg> via insertAdjacentHTML. This avoids
             // HTML string parsing + DOM insertion on every slider input event,
             // which is the main source of lag on mobile CPUs.
-            let svgEl = document.getElementById(`live-filter-${item.id}`);
-            if (!svgEl) {
-                svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            let filterCached = _filterSvgCache.get(item.id);
+            if (!filterCached) {
+                const svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
                 svgEl.id = `live-filter-${item.id}`;
                 svgEl.setAttribute('style', 'position:absolute;width:0;height:0;overflow:visible;pointer-events:none;');
-                svgEl.appendChild(document.createElementNS('http://www.w3.org/2000/svg', 'defs'));
+                const svgDefs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+                svgEl.appendChild(svgDefs);
                 document.body.appendChild(svgEl);
+                filterCached = { svgEl, svgDefs };
+                _filterSvgCache.set(item.id, filterCached);
             }
-            svgEl.querySelector('defs').innerHTML = filterContent;
+            filterCached.svgDefs.innerHTML = filterContent;
 
-            const itemEl = document.querySelector(`.word-item[data-item-id="${item.id}"]`);
-            const bgEl = itemEl ? itemEl.querySelector('.word-bg') : null;
-            if (bgEl) {
+            const itemCached = _itemElCache.get(item.id);
+            if (itemCached) {
                 const filterRef = `url(#${filterId})`;
-                bgEl.style.webkitFilter = filterRef;
-                bgEl.style.filter = filterRef;
-            }
-            if (itemEl) {
-                itemEl.style.setProperty('--bubble-radius', totalRadius + 'px');
+                itemCached.bg.style.webkitFilter = filterRef;
+                itemCached.bg.style.filter = filterRef;
+                itemCached.el.style.setProperty('--bubble-radius', totalRadius + 'px');
             }
         }
 
@@ -2241,10 +2254,17 @@
         // SELECTION & CONTROLS SYNC
         // ══════════════════════════════════════════════════════════════════════════
         function selectItem(id) {
+            // Only touch the two affected elements instead of querySelectorAll-ing all word items
+            if (_prevSelectedId !== null && _prevSelectedId !== id) {
+                const prev = _itemElCache.get(_prevSelectedId);
+                if (prev) prev.el.classList.remove('selected');
+            }
             state.selectedItemId = id;
-            document.querySelectorAll('.word-item').forEach(el => {
-                el.classList.toggle('selected', parseInt(el.dataset.itemId) === id);
-            });
+            _prevSelectedId = id;
+            if (id !== null) {
+                const curr = _itemElCache.get(id);
+                if (curr) curr.el.classList.add('selected');
+            }
             syncControlsToSelectedItem();
             renderWordList();
         }
@@ -2308,6 +2328,19 @@
         // ══════════════════════════════════════════════════════════════════════════
         // WORD LIST
         // ══════════════════════════════════════════════════════════════════════════
+        // Targeted update: refresh only the text/size of one list entry without
+        // rebuilding the whole list — called during textInput typing for zero churn.
+        function updateWordListItemText(item) {
+            const btn = document.querySelector(`[data-list-item-id="${item.id}"]`);
+            if (!btn) { renderWordList(); return; }
+            const textEl = btn.querySelector('.word-text');
+            const sizeEl = btn.querySelector('.word-size');
+            const displayText = item.text || '(empty)';
+            const escapedText = displayText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            if (textEl) textEl.innerHTML = escapedText;
+            if (sizeEl) sizeEl.textContent = item.fontSize + 'px';
+        }
+
         function renderWordList() {
             const list = document.getElementById('word-list');
             list.innerHTML = '';
@@ -2319,6 +2352,7 @@
                 const isSelected = state.selectedItemId === item.id;
                 el.className = 'word-list-item' + (isSelected ? ' active' : '');
                 el.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+                el.dataset.listItemId = item.id;
                 const displayText = item.text || '(empty)';
                 const escapedText = displayText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                 el.innerHTML = `<span class="word-swatch" style="background:${item.color}"></span><span class="word-text text-slate-700 dark:text-slate-300">${escapedText}</span><span class="word-size">${item.fontSize}px</span>`;
@@ -2371,10 +2405,10 @@
             const idx = state.items.findIndex(i => i.id === state.selectedItemId);
             if (idx === -1) return;
 
-            const el = document.querySelector(`.word-item[data-item-id="${state.selectedItemId}"]`);
-            if (el) el.remove();
-            const filterEl = document.getElementById(`live-filter-${state.selectedItemId}`);
-            if (filterEl) filterEl.remove();
+            const _ic = _itemElCache.get(state.selectedItemId);
+            if (_ic) { _ic.el.remove(); _itemElCache.delete(state.selectedItemId); }
+            const _fc = _filterSvgCache.get(state.selectedItemId);
+            if (_fc) { _fc.svgEl.remove(); _filterSvgCache.delete(state.selectedItemId); }
 
             state.items.splice(idx, 1);
 
@@ -2428,9 +2462,9 @@
         function hitTestItems(clientX, clientY) {
             const items = [...state.items].reverse();
             for (const item of items) {
-                const el = document.querySelector(`.word-item[data-item-id="${item.id}"]`);
-                if (!el) continue;
-                const rect = el.getBoundingClientRect();
+                const cached = _itemElCache.get(item.id);
+                if (!cached) continue;
+                const rect = cached.el.getBoundingClientRect();
                 if (clientX >= rect.left && clientX <= rect.right &&
                     clientY >= rect.top && clientY <= rect.bottom) {
                     return item;
@@ -2509,10 +2543,9 @@
                     interaction.startItemY = hitItem.y;
                     displayArea.style.cursor = 'grabbing';
                     // Read element size once here so pointermove never forces a layout
-                    const _de = document.querySelector(`.word-item[data-item-id="${hitItem.id}"]`);
-                    const _db = _de ? _de.querySelector('.word-bg') : null;
-                    interaction.cachedW = _db ? _db.offsetWidth : 0;
-                    interaction.cachedH = _db ? _db.offsetHeight : 0;
+                    const _dc = _itemElCache.get(hitItem.id);
+                    interaction.cachedW = _dc ? _dc.bg.offsetWidth : 0;
+                    interaction.cachedH = _dc ? _dc.bg.offsetHeight : 0;
                 }
             } else {
                 selectItem(null);
@@ -2534,10 +2567,10 @@
                 item.x = interaction.startItemX + dx;
                 item.y = interaction.startItemY + dy;
                 clampItemPosition(item);
-                const el = document.querySelector(`.word-item[data-item-id="${item.id}"]`);
-                if (el) {
-                    el.style.left = (item.x - interaction.cachedW / 2) + 'px';
-                    el.style.top  = (item.y - interaction.cachedH / 2) + 'px';
+                const _mc = _itemElCache.get(item.id);
+                if (_mc) {
+                    _mc.el.style.left = (item.x - interaction.cachedW / 2) + 'px';
+                    _mc.el.style.top  = (item.y - interaction.cachedH / 2) + 'px';
                 }
             } else if (interaction.type === 'pan-canvas') {
                 const dx = clientX - interaction.startClientX;
@@ -2583,11 +2616,9 @@
             if (activeInlineEditor) activeInlineEditor.finish();
             saveUndo();
 
-            const itemEl = document.querySelector(`.word-item[data-item-id="${hitItem.id}"]`);
-            if (!itemEl) return;
-            const fg = itemEl.querySelector('.word-fg');
-            const bg = itemEl.querySelector('.word-bg');
-
+            const _editCached = _itemElCache.get(hitItem.id);
+            if (!_editCached) return;
+            const { el: itemEl, fg, bg } = _editCached;
             itemEl.classList.add('editing');
             fg.style.pointerEvents = 'auto';
             fg.setAttribute('contenteditable', 'plaintext-only');
@@ -2810,7 +2841,7 @@
         // ERASER (per-word)
         // ══════════════════════════════════════════════════════════════════════════
         function getEraserCanvasForItem(itemId) {
-            return document.querySelector(`.word-item[data-item-id="${itemId}"] .eraser-canvas`);
+            return _itemElCache.get(itemId)?.eraserCanvas ?? null;
         }
 
         function getEraserCoords(clientX, clientY, canvasEl) {
@@ -3060,7 +3091,7 @@
             if (!item) return;
             item.text = textInput.value;
             renderItem(item);
-            renderWordList();
+            updateWordListItemText(item);
             if (state.canvasMode === 'single') scheduleAutoFit();
         });
 
