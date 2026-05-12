@@ -73,12 +73,13 @@
         .text-cell-contour {
             position: relative;
             z-index: 10;
-            transform: translateZ(0);
             -webkit-font-smoothing: antialiased;
-            filter: var(--contour-filter-combined);
             text-rendering: geometricPrecision;
             color: black;
             /* Cast solid SourceAlpha for the filter but rely on foreground word-fg to display actual text */
+            /* NOTE: filter is applied via inline style (bgEl.style.filter) in JS to ensure
+               iOS Safari compatibility — CSS filter:url() fails on GPU-composited layers
+               (transform:translateZ forces GPU compositing, which breaks SVG filter refs on iOS). */
         }
 
         .text-cell-contour::after,
@@ -770,10 +771,11 @@
 </head>
 
 <body
-    class="h-screen h-[100dvh] w-screen overflow-hidden bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors duration-300">
+    class="h-[100dvh] w-screen overflow-hidden bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors duration-300">
 
     <!-- SPLASH SCREEN -->
     <div id="splash-screen"
+        role="dialog" aria-modal="true" aria-labelledby="splash-title"
         class="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm transition-opacity duration-700 p-4">
         <div class="bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl p-8 sm:p-12 w-full max-w-md flex flex-col items-center border border-slate-200 dark:border-slate-800 relative text-center"
             style="animation: splash-fade-up 0.4s ease-out both;">
@@ -782,7 +784,7 @@
                 <img src="icon.png" alt="Word Bubbling icon" class="w-full h-full object-contain">
             </div>
             
-            <h1 class="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tight splash-title relative z-10">Word Bubbling</h1>
+            <h1 id="splash-title" class="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tight splash-title relative z-10">Word Bubbling</h1>
             <p class="text-base font-medium text-slate-500 dark:text-slate-400 mt-2 splash-subtitle relative z-10">Vivid colour outlines for word shape recognition.</p>
             
             <div class="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800 w-full flex flex-col items-center splash-credit relative z-10 space-y-4"
@@ -800,7 +802,7 @@
                 </div>
             </div>
             
-            <button onclick="dismissSplash()"
+            <button onclick="dismissSplash()" autofocus
                 class="mt-10 w-full py-4 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold rounded-2xl shadow-xl shadow-indigo-600/25 transition-all text-base relative z-10"
                 style="animation: splash-fade-up 0.5s ease-out 0.5s both;">
                 Get Started
@@ -818,15 +820,16 @@
 
     <!-- ═══════════════════════════════════════════════════ ABOUT MODAL ════════════════════════════════════════════════════ -->
     <div id="about-modal"
+        role="dialog" aria-modal="true" aria-labelledby="about-modal-title"
         class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
         <div
             class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-lg w-full max-h-[88vh] overflow-y-auto border border-slate-200 dark:border-slate-700 flex flex-col">
             <div
                 class="p-5 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur z-10">
-                <h2 class="text-lg font-bold text-slate-900 dark:text-white">About Word Bubbling</h2>
-                <button onclick="toggleAbout()"
+                <h2 id="about-modal-title" class="text-lg font-bold text-slate-900 dark:text-white">About Word Bubbling</h2>
+                <button onclick="toggleAbout()" aria-label="Close about dialog"
                     class="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M6 18L18 6M6 6l12 12" />
                     </svg>
@@ -920,7 +923,7 @@
             <div id="display-area" class="absolute inset-0 overflow-hidden touch-none p-4">
                 <div id="viewport">
                     <div id="canvas-area">
-                        <div id="canvas-resize-handle" title="Drag to resize canvas">
+                        <div id="canvas-resize-handle" role="button" tabindex="0" title="Drag to resize canvas" aria-label="Drag to resize canvas">
                             <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none">
                                 <circle cx="4" cy="4" r="1.5" fill="white" opacity="0.9"/>
                                 <circle cx="8" cy="4" r="1.5" fill="white" opacity="0.9"/>
@@ -935,7 +938,7 @@
 
         <!-- ────────────────────────────────────────── CONTROLS ─────────────────────────────────────────── -->
         <!-- Desktop pull-tab -->
-        <button id="drawer-tab" onclick="toggleDrawer()" aria-label="Toggle settings panel">
+        <button id="drawer-tab" onclick="toggleDrawer()" aria-label="Toggle settings panel" aria-expanded="false">
             <svg class="tab-chevron w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
@@ -952,7 +955,7 @@
             <!-- ── Drawer handle (mobile only) ── -->
             <button id="drawer-handle" onclick="toggleDrawer()"
                 class="md:hidden w-full flex flex-col items-center justify-center py-3 flex-shrink-0 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors active:bg-slate-100 dark:active:bg-slate-800"
-                aria-label="Toggle controls">
+                aria-label="Toggle controls" aria-expanded="false">
                 <div class="w-10 h-1 rounded-full bg-slate-300 dark:bg-slate-600"></div>
                 <div id="drawer-chevron" class="mt-1.5 text-slate-400 transition-transform duration-300">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
@@ -999,7 +1002,7 @@
                             </button>
                             <button onclick="deleteSelectedWord()" id="delete-word-btn"
                                 class="py-2.5 px-4 bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 text-xs font-bold rounded-xl hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/30 dark:hover:text-red-400 transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-slate-100 disabled:hover:text-slate-400 dark:disabled:hover:bg-slate-800 dark:disabled:hover:text-slate-500"
-                                title="Delete selected word" disabled>
+                                aria-label="Delete selected word" title="Delete selected word" disabled>
                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"
                                     stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round"
@@ -1055,11 +1058,13 @@
                                         class="text-[10px] font-semibold text-slate-500 dark:text-slate-400">Side to side</label>
                                     <div class="flex rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
                                         <button type="button" onclick="nudgeCanvasInput('width', -100)"
+                                            aria-label="Decrease canvas width"
                                             class="w-8 flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold">-</button>
                                         <input type="number" id="canvas-width" value="1200" min="200" max="4000" step="100"
                                             inputmode="numeric" aria-label="Canvas width"
                                             class="min-w-0 flex-1 px-1 py-2 bg-transparent text-center text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500 transition-all">
                                         <button type="button" onclick="nudgeCanvasInput('width', 100)"
+                                            aria-label="Increase canvas width"
                                             class="w-8 flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold">+</button>
                                     </div>
                                 </div>
@@ -1068,11 +1073,13 @@
                                         class="text-[10px] font-semibold text-slate-500 dark:text-slate-400">Top to bottom</label>
                                     <div class="flex rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
                                         <button type="button" onclick="nudgeCanvasInput('height', -100)"
+                                            aria-label="Decrease canvas height"
                                             class="w-8 flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold">-</button>
                                         <input type="number" id="canvas-height" value="800" min="200" max="4000" step="100"
                                             inputmode="numeric" aria-label="Canvas height"
                                             class="min-w-0 flex-1 px-1 py-2 bg-transparent text-center text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500 transition-all">
                                         <button type="button" onclick="nudgeCanvasInput('height', 100)"
+                                            aria-label="Increase canvas height"
                                             class="w-8 flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold">+</button>
                                     </div>
                                 </div>
@@ -1091,6 +1098,7 @@
                                 </div>
                             </div>
                             <input type="range" id="zoom-range" min="0.1" max="2.0" step="0.05" value="1.0"
+                                aria-label="Zoom level"
                                 class="w-full bg-slate-200 dark:bg-slate-700">
                         </div>
                     </div>
@@ -1147,7 +1155,7 @@
                             <div class="space-y-1.5">
                                 <label class="text-[10px] font-semibold text-slate-500 dark:text-slate-400">Font</label>
                                 <div class="grid grid-cols-2 gap-2">
-                                    <select id="font-family"
+                                    <select id="font-family" aria-label="Font family"
                                         class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500">
                                         <optgroup label="CVI & Legibility Fonts">
                                             <option value="Atkinson Hyperlegible">Atkinson Hyperlegible</option>
@@ -1162,7 +1170,7 @@
                                             <option value="Lexend" selected>Lexend</option>
                                         </optgroup>
                                     </select>
-                                    <select id="font-weight"
+                                    <select id="font-weight" aria-label="Font weight"
                                         class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500">
                                     </select>
                                 </div>
@@ -1177,6 +1185,7 @@
                                         class="text-[10px] font-mono font-bold text-indigo-500 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-1.5 py-0.5 rounded-md">120px</span>
                                 </div>
                                 <input type="range" id="font-size-range" min="16" max="600" step="2" value="120"
+                                    aria-label="Font size"
                                     class="w-full bg-slate-200 dark:bg-slate-700">
                             </div>
                             <div id="font-size-auto-note" class="flex items-center justify-between bg-indigo-50 dark:bg-indigo-950/40 rounded-lg px-3 py-2" style="display:none">
@@ -1194,6 +1203,7 @@
                                         class="text-[10px] font-mono font-bold text-indigo-500 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-1.5 py-0.5 rounded-md">1.1</span>
                                 </div>
                                 <input type="range" id="line-height-range" min="0.8" max="2.0" step="0.1" value="1.1"
+                                    aria-label="Line spacing"
                                     class="w-full bg-slate-200 dark:bg-slate-700">
                             </div>
                         </div>
@@ -1216,37 +1226,37 @@
                                 <div class="grid grid-cols-6 gap-2">
                                     <button onclick="setBubbleColor('#FF0000', this)" data-color="#FF0000"
                                         class="color-btn w-full aspect-square rounded-xl ring-2 ring-transparent ring-offset-2 ring-offset-white dark:ring-offset-slate-900 focus:outline-none"
-                                        style="background-color: #FF0000;" title="Pure Red"></button>
+                                        style="background-color: #FF0000;" aria-label="Pure Red" aria-pressed="false" title="Pure Red"></button>
                                     <button onclick="setBubbleColor('#FF4000', this)" data-color="#FF4000"
                                         class="color-btn w-full aspect-square rounded-xl ring-2 ring-transparent ring-offset-2 ring-offset-white dark:ring-offset-slate-900 focus:outline-none"
-                                        style="background-color: #FF4000;" title="Vermilion"></button>
+                                        style="background-color: #FF4000;" aria-label="Vermilion" aria-pressed="false" title="Vermilion"></button>
                                     <button onclick="setBubbleColor('#FF8000', this)" data-color="#FF8000"
                                         class="color-btn w-full aspect-square rounded-xl ring-2 ring-transparent ring-offset-2 ring-offset-white dark:ring-offset-slate-900 focus:outline-none"
-                                        style="background-color: #FF8000;" title="Orange"></button>
+                                        style="background-color: #FF8000;" aria-label="Orange" aria-pressed="false" title="Orange"></button>
                                     <button onclick="setBubbleColor('#FFFF00', this)" data-color="#FFFF00"
                                         class="color-btn w-full aspect-square rounded-xl ring-2 ring-transparent ring-offset-2 ring-offset-white dark:ring-offset-slate-900 focus:outline-none"
-                                        style="background-color: #FFFF00;" title="Pure Yellow"></button>
+                                        style="background-color: #FFFF00;" aria-label="Pure Yellow" aria-pressed="false" title="Pure Yellow"></button>
                                     <button onclick="setBubbleColor('#00FF00', this)" data-color="#00FF00"
                                         class="color-btn w-full aspect-square rounded-xl ring-2 ring-transparent ring-offset-2 ring-offset-white dark:ring-offset-slate-900 focus:outline-none"
-                                        style="background-color: #00FF00;" title="Pure Green"></button>
+                                        style="background-color: #00FF00;" aria-label="Pure Green" aria-pressed="false" title="Pure Green"></button>
                                     <button onclick="setBubbleColor('#00FFFF', this)" data-color="#00FFFF"
                                         class="color-btn w-full aspect-square rounded-xl ring-2 ring-transparent ring-offset-2 ring-offset-white dark:ring-offset-slate-900 focus:outline-none"
-                                        style="background-color: #00FFFF;" title="Cyan"></button>
+                                        style="background-color: #00FFFF;" aria-label="Cyan" aria-pressed="false" title="Cyan"></button>
                                     <button onclick="setBubbleColor('#0080FF', this)" data-color="#0080FF"
                                         class="color-btn w-full aspect-square rounded-xl ring-2 ring-transparent ring-offset-2 ring-offset-white dark:ring-offset-slate-900 focus:outline-none"
-                                        style="background-color: #0080FF;" title="Azure"></button>
+                                        style="background-color: #0080FF;" aria-label="Azure" aria-pressed="false" title="Azure"></button>
                                     <button onclick="setBubbleColor('#0000FF', this)" data-color="#0000FF"
                                         class="color-btn w-full aspect-square rounded-xl ring-2 ring-transparent ring-offset-2 ring-offset-white dark:ring-offset-slate-900 focus:outline-none"
-                                        style="background-color: #0000FF;" title="Pure Blue"></button>
+                                        style="background-color: #0000FF;" aria-label="Pure Blue" aria-pressed="false" title="Pure Blue"></button>
                                     <button onclick="setBubbleColor('#8000FF', this)" data-color="#8000FF"
                                         class="color-btn w-full aspect-square rounded-xl ring-2 ring-transparent ring-offset-2 ring-offset-white dark:ring-offset-slate-900 focus:outline-none"
-                                        style="background-color: #8000FF;" title="Purple"></button>
+                                        style="background-color: #8000FF;" aria-label="Purple" aria-pressed="false" title="Purple"></button>
                                     <button onclick="setBubbleColor('#FF00FF', this)" data-color="#FF00FF"
                                         class="color-btn w-full aspect-square rounded-xl ring-2 ring-transparent ring-offset-2 ring-offset-white dark:ring-offset-slate-900 focus:outline-none"
-                                        style="background-color: #FF00FF;" title="Magenta"></button>
+                                        style="background-color: #FF00FF;" aria-label="Magenta" aria-pressed="false" title="Magenta"></button>
                                     <button onclick="setBubbleColor('#FF0080', this)" data-color="#FF0080"
                                         class="color-btn w-full aspect-square rounded-xl ring-2 ring-transparent ring-offset-2 ring-offset-white dark:ring-offset-slate-900 focus:outline-none"
-                                        style="background-color: #FF0080;" title="Pink"></button>
+                                        style="background-color: #FF0080;" aria-label="Pink" aria-pressed="false" title="Pink"></button>
                                     <div class="relative w-full aspect-square rounded-xl overflow-hidden cursor-pointer hover:scale-105 transition-transform flex items-center justify-center shadow-[inset_0_0_0_2px_rgba(148,163,184,0.3)] dark:shadow-[inset_0_0_0_2px_rgba(71,85,105,0.4)] bg-[url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAAXNSR0IArs4c6QAAACVJREFUKFNj/P///38GIgDBxgRiUBG4gRhVBRdghhEDo+CgAwAAsksl/o/8RtcAAAAASUVORK5CYII=')] bg-repeat"
                                         title="Custom Color">
                                         <svg class="w-5 h-5 text-slate-700 dark:text-white drop-shadow-md transition-colors pointer-events-none absolute z-10"
@@ -1255,6 +1265,7 @@
                                         </svg>
                                         <input type="color" id="custom-color-picker" value="#FF0000"
                                             oninput="setBubbleColor(this.value, null, true)"
+                                            aria-label="Custom bubble colour"
                                             class="w-[200%] h-[200%] cursor-pointer absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 z-20">
                                     </div>
                                 </div>
@@ -1269,6 +1280,7 @@
                                         class="text-[10px] font-mono font-bold text-indigo-500 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-1.5 py-0.5 rounded-md">8px</span>
                                 </div>
                                 <input type="range" id="thickness-range" min="4" max="60" step="1" value="9"
+                                    aria-label="Bubble thickness"
                                     class="w-full bg-slate-200 dark:bg-slate-700">
                             </div>
 
@@ -1282,6 +1294,7 @@
                                         class="text-[10px] font-mono font-bold text-indigo-500 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-1.5 py-0.5 rounded-md">6px</span>
                                 </div>
                                 <input type="range" id="gap-range" min="3" max="30" value="6"
+                                    aria-label="Gap between text and bubble"
                                     class="w-full bg-slate-200 dark:bg-slate-700">
                             </div>
 
@@ -1296,6 +1309,7 @@
                                         class="text-[10px] font-mono font-bold text-indigo-500 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-1.5 py-0.5 rounded-md self-start">0.12</span>
                                 </div>
                                 <input type="range" id="contour-relax-range" min="0" max="0.45" step="0.01" value="0.12"
+                                    aria-label="Smoothness"
                                     class="w-full bg-slate-200 dark:bg-slate-700">
                             </div>
 
@@ -1310,6 +1324,7 @@
                                         class="text-[10px] font-mono font-bold text-indigo-500 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-1.5 py-0.5 rounded-md self-start">0.15</span>
                                 </div>
                                 <input type="range" id="mask-spread-range" min="0" max="0.5" step="0.01" value="0.15"
+                                    aria-label="Hole fill"
                                     class="w-full bg-slate-200 dark:bg-slate-700">
                             </div>
 
@@ -1321,7 +1336,7 @@
                                     <p class="text-[10px] text-slate-400 mt-0.5">Show the word inside the bubble</p>
                                 </div>
                                 <label class="toggle-switch">
-                                    <input type="checkbox" id="show-text" checked>
+                                    <input type="checkbox" id="show-text" checked aria-label="Show text inside the bubble">
                                     <span class="toggle-slider"></span>
                                 </label>
                             </div>
@@ -1348,7 +1363,7 @@
                                             part of its bubble</p>
                                     </div>
                                     <label class="toggle-switch">
-                                        <input type="checkbox" id="erase-mode">
+                                        <input type="checkbox" id="erase-mode" aria-label="Erase bubble mode">
                                         <span class="toggle-slider"></span>
                                     </label>
                                 </div>
@@ -1362,6 +1377,7 @@
                                             class="text-[10px] font-mono font-bold text-indigo-500 bg-indigo-50 dark:bg-indigo-950/50 px-1.5 py-0.5 rounded-md">30px</span>
                                     </div>
                                     <input type="range" id="brush-size-range" min="5" max="100" step="1" value="30"
+                                        aria-label="Brush size"
                                         class="w-full bg-slate-200 dark:bg-slate-700">
                                     <button id="clear-eraser-btn"
                                         class="mt-1 w-full py-1.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-xs font-bold rounded-lg transition-colors hover:bg-red-200 dark:hover:bg-red-900/50 active:scale-[0.98]">Restore
@@ -1390,7 +1406,7 @@
                                 <p class="text-[10px] text-slate-400 mt-0.5">PNG with no background colour</p>
                             </div>
                             <label class="toggle-switch">
-                                <input type="checkbox" id="transparent-bg">
+                                <input type="checkbox" id="transparent-bg" aria-label="Export with transparent background">
                                 <span class="toggle-slider"></span>
                             </label>
                         </div>
@@ -1619,7 +1635,12 @@
                 else drawerChevron.style.transform = '';
             }
             updateDrawerDots();
-            if (drawerTab) drawerTab.classList.toggle('open', isOpen);
+            if (drawerTab) {
+                drawerTab.classList.toggle('open', isOpen);
+                drawerTab.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            }
+            const drawerHandle = document.getElementById('drawer-handle');
+            if (drawerHandle) drawerHandle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
             document.body.classList.toggle('drawer-open', isOpen);
             const gearBtn = document.getElementById('settings-gear-btn');
             if (gearBtn) gearBtn.classList.toggle('ring-2', isOpen), gearBtn.classList.toggle('ring-indigo-500', isOpen);
@@ -1634,7 +1655,12 @@
             drawer.classList.remove('drawer-expanded', 'drawer-half');
             if (drawerChevron) drawerChevron.style.transform = '';
             updateDrawerDots();
-            if (drawerTab) drawerTab.classList.remove('open');
+            if (drawerTab) {
+                drawerTab.classList.remove('open');
+                drawerTab.setAttribute('aria-expanded', 'false');
+            }
+            const drawerHandle = document.getElementById('drawer-handle');
+            if (drawerHandle) drawerHandle.setAttribute('aria-expanded', 'false');
             document.body.classList.remove('drawer-open');
             const gearBtn = document.getElementById('settings-gear-btn');
             if (gearBtn) gearBtn.classList.remove('ring-2', 'ring-indigo-500');
@@ -1677,6 +1703,9 @@
             if (hidden) {
                 aboutModal.classList.remove('hidden');
                 aboutModal.classList.add('flex');
+                // Move focus to the close button for keyboard/screen reader users
+                const closeBtn = aboutModal.querySelector('button');
+                if (closeBtn) closeBtn.focus();
             } else {
                 aboutModal.classList.add('hidden');
                 aboutModal.classList.remove('flex');
@@ -1708,100 +1737,79 @@
         // ══════════════════════════════════════════════════════════════════════════
         // SVG FILTER PIPELINE (preserved, contourRelax passed as parameter)
         // ══════════════════════════════════════════════════════════════════════════
-        // OPTIMIZED SVG FILTER GENERATION
-        // ══════════════════════════════════════════════════════════════════════════
-        function generateOptimizedSVGFilter(filterId, item, fontSize, gap, totalRadius, colorRgb, bgColor, isTransparent, sourceGraphicMerge = '') {
+        const REFERENCE_FONT_SIZE = 96;
+
+        function scaleRadius(sliderValue, currentFontSize) {
+            const scale = (parseFloat(currentFontSize) || REFERENCE_FONT_SIZE) / REFERENCE_FONT_SIZE;
+            return Math.max(sliderValue * scale, 0.5);
+        }
+
+        function getHolePatchStr(fontSize, contourRelax) {
             const fsv = parseFloat(fontSize) || 100;
-            const fillRadius = Math.max(fsv * 0.22, 4).toFixed(1);
-            
-            // 1) Crisp binary source + hole filling
-            let str = `<filter id="${filterId}" x="-50%" y="-50%" width="200%" height="200%" color-interpolation-filters="sRGB">
+            const cr = typeof contourRelax === 'number' ? contourRelax : 0.12;
+
+            // Map contourRelax to coreDilate so lower smoothness traces tighter into gaps
+            const dilateFactor = Math.max(0, cr * 2.0);
+            const coreDilate = Math.max(fsv * dilateFactor, 1);
+            const coreErode = coreDilate + Math.max(fsv * 0.05, 3);
+
+            return `
                 <feComponentTransfer in="SourceAlpha" result="CrispSource">
                     <feFuncA type="linear" slope="255" intercept="-127.5" />
                 </feComponentTransfer>
-                <feMorphology operator="dilate" radius="${fillRadius}" in="CrispSource" result="cf_d"/>
-                <feMorphology operator="erode"  radius="${fillRadius}" in="cf_d" result="cf_e"/>
-                <feComposite operator="over" in="CrispSource" in2="cf_e" result="CounterFilledSource"/>
-                <feComposite operator="out" in="CounterFilledSource" in2="CrispSource" result="CounterHoles"/>`;
+                <feMorphology operator="dilate" radius="${coreDilate}" in="CrispSource" result="core_d" />
+                <feMorphology operator="erode" radius="${coreErode}" in="core_d" result="core_e" />
+                <feComposite operator="over" in="CrispSource" in2="core_e" result="FilledSource" />
+            `;
+        }
 
-            const sharp = item.sharp;
-            const cr = typeof item.contourRelax === 'number' ? item.contourRelax : 0.12;
-            const contourRadii = (fsv * cr).toFixed(2);
-            
-            // 2) Optional global smoothing base (calculates morphological closing ONCE)
-            if (contourRadii > 0.5) {
-                const cBlur = Math.max(contourRadii / 4, 0.6).toFixed(2);
-                str += `
-                <feMorphology operator="dilate" radius="${contourRadii}" in="CounterFilledSource" result="sm_d"/>
-                <feMorphology operator="erode"  radius="${contourRadii}" in="sm_d" result="sm_e"/>`;
-                
-                if (!sharp) {
-                    str += `
-                <feGaussianBlur stdDeviation="${cBlur}" in="sm_e" result="sm_b"/>
-                <feComponentTransfer in="sm_b" result="sm_t">
-                    <feFuncA type="linear" slope="30" intercept="-14"/>
-                </feComponentTransfer>
-                <feComposite operator="over" in="CounterFilledSource" in2="sm_t" result="SmoothBase"/>`;
-                } else {
-                    str += `<feComposite operator="over" in="CounterFilledSource" in2="sm_e" result="SmoothBase"/>`;
-                }
-            } else {
-                str += `<feComponentTransfer in="CounterFilledSource" result="SmoothBase"><feFuncA type="identity"/></feComponentTransfer>`;
+        function buildExpandedShape(radius, contourRelax, sharp, prefix, sourceNode = 'FilledSource') {
+            if (sharp) {
+                return {
+                    xml: `<feMorphology operator="dilate" radius="${radius}" in="${sourceNode}" result="${prefix}_exp" />`,
+                    result: `${prefix}_exp`
+                };
             }
+            // By making the minimum lower (0.2 instead of 0.8), "0" smoothness is truly much less smooth
+            const blurPortion = Math.max(radius * (contourRelax * 1.5), 0.2);
+            const xml = `
+            <feMorphology operator="dilate" radius="${radius}" in="${sourceNode}" result="${prefix}_morph_expand" />
+            <feGaussianBlur stdDeviation="${blurPortion}" in="${prefix}_morph_expand" result="${prefix}_blur" />
+            <feComponentTransfer in="${prefix}_blur" result="${prefix}_exp">
+                <feFuncA type="linear" slope="255" intercept="-127.5" />
+            </feComponentTransfer>
+            `;
+            return { xml, result: `${prefix}_exp` };
+        }
 
-            // 3) Expand for gap (used by Mask & Ring Inner) and total (Ring Outer)
-            // By extracting SmoothBase, we avoid duplicating the expensive cr operations above
-            str += `
-                <feMorphology operator="dilate" radius="${gap}" in="SmoothBase" result="gap_exp"/>
-                <feMorphology operator="dilate" radius="${totalRadius}" in="SmoothBase" result="total_exp"/>`;
-
-            // 4) Optional anti-aliasing
-            if (!sharp) {
-                const innerAA = Math.max(gap * 0.12, 0.4).toFixed(2);
-                const outerAA = Math.max(totalRadius * 0.12, 0.4).toFixed(2);
-                const AA_SLOPE = 8;
-                const AA_OFFSET = -3.5;
-                str += `
-                <feGaussianBlur stdDeviation="${innerAA}" in="gap_exp" result="gap_aa"/>
-                <feComponentTransfer in="gap_aa" result="gap_shaped">
-                    <feFuncA type="linear" slope="${AA_SLOPE}" intercept="${AA_OFFSET}" />
-                </feComponentTransfer>
-                <feGaussianBlur stdDeviation="${outerAA}" in="total_exp" result="total_aa"/>
-                <feComponentTransfer in="total_aa" result="total_shaped">
-                    <feFuncA type="linear" slope="${AA_SLOPE}" intercept="${AA_OFFSET}" />
-                </feComponentTransfer>`;
+        function getFilterContent(radius, color, _unused, sharp, fontSize, prefix, suffix, contourRelax) {
+            const aaBlur = Math.max(radius * 0.12, 0.4);
+            const AA_SLOPE = 8;
+            const AA_OFFSET = -3.5;
+            const cr = typeof contourRelax === 'number' ? contourRelax : 0.12;
+            const { xml: shapeXml, result: expandedNode } = buildExpandedShape(radius, cr, sharp, prefix, 'FilledSource');
+            const resultAttr = suffix ? ` result="${suffix}"` : '';
+            if (sharp) {
+                return `${shapeXml}<feFlood flood-color="${color}" result="${prefix}_col" /><feComposite operator="in" in="${prefix}_col" in2="${expandedNode}"${resultAttr} />`;
             } else {
-                str += `
-                <feComponentTransfer in="gap_exp" result="gap_shaped"><feFuncA type="identity"/></feComponentTransfer>
-                <feComponentTransfer in="total_exp" result="total_shaped"><feFuncA type="identity"/></feComponentTransfer>`;
+                return `${shapeXml}<feGaussianBlur stdDeviation="${aaBlur}" in="${expandedNode}" result="${prefix}_aa" /><feComponentTransfer in="${prefix}_aa" result="${prefix}_shaped"><feFuncA type="linear" slope="${AA_SLOPE}" intercept="${AA_OFFSET}" /></feComponentTransfer><feFlood flood-color="${color}" result="${prefix}_col" /><feComposite operator="in" in="${prefix}_col" in2="${prefix}_shaped"${resultAttr} />`;
             }
+        }
 
-            // 5) Render layers
-            str += `
-                <feComposite operator="out" in="total_shaped" in2="gap_shaped" result="ring_alpha"/>
-                <feFlood flood-color="${colorRgb}" result="ring_color"/>
-                <feComposite operator="in" in="ring_color" in2="ring_alpha" result="final_outline"/>`;
-
-            if (!isTransparent) {
-                str += `
-                <feFlood flood-color="${bgColor}" result="mask_color"/>
-                <feComposite operator="in" in="mask_color" in2="gap_shaped" result="mask_solid"/>
-                <feComposite operator="out" in="mask_solid" in2="CounterHoles" result="final_mask_cut"/>
-                <feMerge>
-                    <feMergeNode in="final_mask_cut"/>
-                    <feMergeNode in="final_outline"/>
-                    ${sourceGraphicMerge}
-                </feMerge>`;
+        function getRingFilterContent(gapRadius, totalRadius, outlineColor, sharp, fontSize, suffix, contourRelax) {
+            const AA_SLOPE = 8;
+            const AA_OFFSET = -3.5;
+            const cr = typeof contourRelax === 'number' ? contourRelax : 0.12;
+            const { xml: innerXml, result: innerNode } = buildExpandedShape(gapRadius, cr, sharp, 'rf_i', 'FilledSource');
+            const { xml: outerXml, result: outerNode } = buildExpandedShape(totalRadius, cr, sharp, 'rf_o', 'FilledSource');
+            const resultAttr = suffix ? ` result="${suffix}"` : '';
+            if (sharp) {
+                return `${innerXml}${outerXml}<feComposite operator="out" in="${outerNode}" in2="${innerNode}" result="ring" /><feFlood flood-color="${outlineColor}" result="rf_col" /><feComposite operator="in" in="rf_col" in2="ring"${resultAttr} />`;
             } else {
-                str += `
-                <feMerge>
-                    <feMergeNode in="final_outline"/>
-                    ${sourceGraphicMerge}
-                </feMerge>`;
+                const outerAA = Math.max(totalRadius * 0.12, 0.4);
+                const innerAA = Math.max(gapRadius * 0.12, 0.4);
+                return `${innerXml}${outerXml}<feGaussianBlur stdDeviation="${outerAA}" in="${outerNode}" result="rf_o_aa" /><feComponentTransfer in="rf_o_aa" result="rf_o_shaped"><feFuncA type="linear" slope="${AA_SLOPE}" intercept="${AA_OFFSET}" /></feComponentTransfer><feGaussianBlur stdDeviation="${innerAA}" in="${innerNode}" result="rf_i_aa" /><feComponentTransfer in="rf_i_aa" result="rf_i_shaped"><feFuncA type="linear" slope="${AA_SLOPE}" intercept="${AA_OFFSET}" /></feComponentTransfer><feComposite operator="out" in="rf_o_shaped" in2="rf_i_shaped" result="ring" /><feFlood flood-color="${outlineColor}" result="rf_col" /><feComposite operator="in" in="rf_col" in2="ring"${resultAttr} />`;
             }
-
-            str += `\n            </filter>`;
-            return str;
         }
 
         // ══════════════════════════════════════════════════════════════════════════
@@ -1827,12 +1835,14 @@
             document.querySelectorAll('.color-btn').forEach(b => {
                 b.classList.remove('selected', 'ring-indigo-500');
                 b.classList.add('ring-transparent');
+                b.setAttribute('aria-pressed', 'false');
             });
             const normalColor = color.toUpperCase();
             const matchBtn = document.querySelector(`.color-btn[data-color="${normalColor}"]`);
             if (matchBtn) {
                 matchBtn.classList.add('selected', 'ring-indigo-500');
                 matchBtn.classList.remove('ring-transparent');
+                matchBtn.setAttribute('aria-pressed', 'true');
             }
             document.getElementById('custom-color-picker').value = color;
         }
@@ -2186,10 +2196,22 @@
             const isDark = htmlEl.classList.contains('dark');
             const bgColor = isDark ? '#000000' : '#ffffff';
 
+            const holePatchStr = getHolePatchStr(fs, item.contourRelax);
+            const outlineFilter = getRingFilterContent(gap, totalRadius, colorRgb, item.sharp, fs, 'final_outline', item.contourRelax);
+            const maskFilter = getFilterContent(gap, bgColor, false, item.sharp, fs, 'gfmask', 'final_mask', item.contourRelax);
+
             const filterId = `f-item-${item.id}`;
-            const svgFilters = `<svg id="live-filter-${item.id}" xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute;width:0;height:0;overflow:hidden;pointer-events:none;">
+            const svgFilters = `<svg id="live-filter-${item.id}" xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0;overflow:visible;pointer-events:none;">
                 <defs>
-                    ${generateOptimizedSVGFilter(filterId, item, fs, gap, totalRadius, colorRgb, bgColor, false, '')}
+                    <filter id="${filterId}" x="-200%" y="-200%" width="500%" height="500%" color-interpolation-filters="sRGB">
+                        ${holePatchStr}
+                        ${outlineFilter}
+                        ${maskFilter}
+                        <feMerge>
+                            <feMergeNode in="final_outline" />
+                            <feMergeNode in="final_mask" />
+                        </feMerge>
+                    </filter>
                 </defs>
             </svg>`;
 
@@ -2200,7 +2222,9 @@
 
             const bgEl = document.querySelector(`.word-item[data-item-id="${item.id}"] .word-bg`);
             if (bgEl) {
-                bgEl.style.setProperty('--contour-filter-combined', `url(#${filterId})`);
+                const filterRef = `url(#${filterId})`;
+                bgEl.style.webkitFilter = filterRef;
+                bgEl.style.filter = filterRef;
             }
             const itemEl = document.querySelector(`.word-item[data-item-id="${item.id}"]`);
             if (itemEl) {
@@ -2289,6 +2313,7 @@
                 const el = document.createElement('button');
                 const isSelected = state.selectedItemId === item.id;
                 el.className = 'word-list-item' + (isSelected ? ' active' : '');
+                el.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
                 const displayText = item.text || '(empty)';
                 const escapedText = displayText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                 el.innerHTML = `<span class="word-swatch" style="background:${item.color}"></span><span class="word-text text-slate-700 dark:text-slate-300">${escapedText}</span><span class="word-size">${item.fontSize}px</span>`;
@@ -2823,8 +2848,26 @@
             const totalRadius = gap + thick;
             const colorRgb = hexToRgb(item.color);
 
+            const holePatchStr = getHolePatchStr(fsStr, item.contourRelax);
+            const outlineFilter = getRingFilterContent(gap, totalRadius, colorRgb, item.sharp, fsStr, 'final_outline', item.contourRelax);
+            const maskFilter = getFilterContent(gap, bgColor, false, item.sharp, fsStr, 'gfmask', 'final_mask', item.contourRelax);
+
             const sourceGraphicMerge = item.showText ? '<feMergeNode in="SourceGraphic"/>' : '';
-            const exportFilterDefs = generateOptimizedSVGFilter('f-export', item, fsStr, gap, totalRadius, colorRgb, bgColor, isTransparent, sourceGraphicMerge);
+            let exportFilterDefs;
+
+            if (isTransparent) {
+                // Transparent export: only the colored ring is opaque; gap zone is transparent.
+                // Mask is omitted so no bgColor bleeds into the gap, regardless of dark/light mode.
+                exportFilterDefs = `<filter id="f-export" x="-200%" y="-200%" width="500%" height="500%" color-interpolation-filters="sRGB">
+                    ${holePatchStr}${outlineFilter}
+                    <feMerge><feMergeNode in="final_outline"/>${sourceGraphicMerge}</feMerge>
+                </filter>`;
+            } else {
+                exportFilterDefs = `<filter id="f-export" x="-200%" y="-200%" width="500%" height="500%" color-interpolation-filters="sRGB">
+                    ${holePatchStr}${outlineFilter}${maskFilter}
+                    <feMerge><feMergeNode in="final_outline"/><feMergeNode in="final_mask"/>${sourceGraphicMerge}</feMerge>
+                </filter>`;
+            }
 
             const fontDataUrl = await getEmbeddedFont(item.font, item.weight);
             const fontFaceCSS = fontDataUrl
@@ -3236,18 +3279,14 @@
 
         // Resize observer
         let resizeFrame = null;
-        if (typeof ResizeObserver !== 'undefined') {
-            const resizeObserver = new ResizeObserver(() => {
-                if (resizeFrame) cancelAnimationFrame(resizeFrame);
-                resizeFrame = requestAnimationFrame(() => {
-                    keepViewportCenterDuringLayoutChange();
-                    resizeFrame = null;
-                });
+        const resizeObserver = new ResizeObserver(() => {
+            if (resizeFrame) cancelAnimationFrame(resizeFrame);
+            resizeFrame = requestAnimationFrame(() => {
+                keepViewportCenterDuringLayoutChange();
+                resizeFrame = null;
             });
-            resizeObserver.observe(displayArea);
-        } else {
-            window.addEventListener('resize', keepViewportCenterDuringLayoutChange);
-        }
+        });
+        resizeObserver.observe(displayArea);
 
         // Splash screen
         function dismissSplash() {
