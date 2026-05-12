@@ -2209,12 +2209,42 @@
             const isDark = htmlEl.classList.contains('dark');
             const bgColor = isDark ? '#000000' : '#ffffff';
 
+            // Read element dimensions for a tight pixel-accurate filter region.
+            // offsetWidth/Height forces a sync layout but always returns the correct
+            // value since renderItem() guarantees the element is in the DOM first.
+            // Falls back to font-size-based estimate if the cache entry is missing.
+            const itemCached = _itemElCache.get(item.id);
+            const bgW = (itemCached?.bg.offsetWidth  | 0) || Math.ceil(parseFloat(item.fontSize) * 8);
+            const bgH = (itemCached?.bg.offsetHeight | 0) || Math.ceil(parseFloat(item.fontSize) * 2);
+            // Margin must cover the full outline expansion plus blur spread.
+            const m   = Math.ceil(totalRadius + 20);
+
+            // Short-circuit: skip SVG rebuild if every input is identical to last call.
+            const filterKey = `${bgW}|${bgH}|${m}|${fs}|${thick}|${gap}|${colorRgb}|${bgColor}|${item.sharp}|${item.contourRelax}`;
+            let filterCached = _filterSvgCache.get(item.id);
+            if (filterCached && filterCached.lastKey === filterKey) {
+                // SVG content unchanged — still re-apply the CSS filter ref in case the
+                // HTML element was recreated (e.g. after undo) since renderItem() resets
+                // inline styles on newly created elements.
+                if (itemCached) {
+                    const ref = `url(#f-item-${item.id})`;
+                    itemCached.bg.style.webkitFilter = ref;
+                    itemCached.bg.style.filter = ref;
+                    itemCached.el.style.setProperty('--bubble-radius', totalRadius + 'px');
+                }
+                return;
+            }
+
             const holePatchStr = getHolePatchStr(fs, item.contourRelax);
             const outlineFilter = getRingFilterContent(gap, totalRadius, colorRgb, item.sharp, fs, 'final_outline', item.contourRelax);
             const maskFilter = getFilterContent(gap, bgColor, false, item.sharp, fs, 'gfmask', 'final_mask', item.contourRelax);
 
             const filterId = `f-item-${item.id}`;
-            const filterContent = `<filter id="${filterId}" x="-200%" y="-200%" width="500%" height="500%" color-interpolation-filters="sRGB">
+            // filterUnits="userSpaceOnUse" + pixel margins: only process the exact area
+            // needed (element bbox + outline margin). Replaces the old "-200%/500%"
+            // percentages which processed up to 8× more pixels on mobile — the
+            // primary cause of SVG-filter paint lag during drag and slider moves.
+            const filterContent = `<filter id="${filterId}" filterUnits="userSpaceOnUse" x="-${m}" y="-${m}" width="${bgW + m * 2}" height="${bgH + m * 2}" color-interpolation-filters="sRGB">
                         ${holePatchStr}
                         ${outlineFilter}
                         ${maskFilter}
@@ -2224,24 +2254,25 @@
                         </feMerge>
                     </filter>`;
 
-            // Update the existing <svg> <defs> in-place instead of removing and
-            // re-inserting the whole <svg> via insertAdjacentHTML. This avoids
-            // HTML string parsing + DOM insertion on every slider input event,
-            // which is the main source of lag on mobile CPUs.
-            let filterCached = _filterSvgCache.get(item.id);
             if (!filterCached) {
                 const svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
                 svgEl.id = `live-filter-${item.id}`;
                 svgEl.setAttribute('style', 'position:absolute;width:0;height:0;overflow:visible;pointer-events:none;');
                 const svgDefs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
                 svgEl.appendChild(svgDefs);
-                document.body.appendChild(svgEl);
-                filterCached = { svgEl, svgDefs };
+                // CRITICAL: append inside canvasArea (inside #viewport's compositing layer)
+                // NOT document.body. #viewport has will-change:transform which promotes it
+                // to a GPU layer on iOS Safari and Firefox. filter:url(#id) refs on elements
+                // inside that layer cannot resolve definitions outside it — so the outline
+                // was silently invisible on iOS and Firefox. Co-locating the filter SVG
+                // with the filtered elements fixes this.
+                canvasArea.appendChild(svgEl);
+                filterCached = { svgEl, svgDefs, lastKey: null };
                 _filterSvgCache.set(item.id, filterCached);
             }
+            filterCached.lastKey = filterKey;
             filterCached.svgDefs.innerHTML = filterContent;
 
-            const itemCached = _itemElCache.get(item.id);
             if (itemCached) {
                 const filterRef = `url(#${filterId})`;
                 itemCached.bg.style.webkitFilter = filterRef;
@@ -3092,6 +3123,9 @@
             item.text = textInput.value;
             renderItem(item);
             updateWordListItemText(item);
+            // Schedule a filter region update so the pixel-accurate filter region
+            // stays in sync when text grows or shrinks (changing offsetWidth).
+            scheduleFilterUpdate(item);
             if (state.canvasMode === 'single') scheduleAutoFit();
         });
 
